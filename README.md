@@ -9,6 +9,9 @@ Open, simple, type-hinted service container for singleton service objects.
 
 [![Scrutinizer Code Quality](https://scrutinizer-ci.com/g/mindplay-dk/boxy/badges/quality-score.png)](https://scrutinizer-ci.com/g/mindplay-dk/boxy/)
 
+
+### Usage
+
 Just three public methods:
 
 ```PHP
