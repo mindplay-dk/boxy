@@ -3,6 +3,12 @@ Boxy
 
 Open, simple, type-hinted service container for singleton service objects.
 
+[![Build Status](https://travis-ci.org/mindplay-dk/boxy.png)](https://travis-ci.org/mindplay-dk/boxy)
+
+[![Code Coverage](https://scrutinizer-ci.com/g/mindplay-dk/boxy/badges/coverage.png)](https://scrutinizer-ci.com/g/mindplay-dk/boxy/)
+
+[![Scrutinizer Code Quality](https://scrutinizer-ci.com/g/mindplay-dk/boxy/badges/quality-score.png)](https://scrutinizer-ci.com/g/mindplay-dk/boxy/)
+
 Just three public methods:
 
 ```PHP
