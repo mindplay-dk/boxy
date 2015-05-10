@@ -2,7 +2,10 @@
 
 use mindplay\boxy\ServiceContainer;
 
+use foo\Bar;
+
 require __DIR__ . '/header.php';
+require __DIR__ . '/case.php';
 
 header('Content-type: text/plain');
 
@@ -192,7 +195,26 @@ test(
 test(
     'can handle namespace aliases',
     function () {
-        // ...
+        $c = new ServiceContainer();
+
+        $c->register(
+            /**
+             * @return Bar
+             */
+            function () {
+                return new Bar();
+            }
+        );
+
+        $got_bar = false;
+
+        $c->call(function (Bar $bar) use (&$got_bar) {
+            if ($bar instanceof Bar) {
+                $got_bar = true;
+            }
+        });
+
+        ok($got_bar, 'correctly resolves local namespace alias Bar as full-qualified name foo\\Bar');
     }
 );
 
