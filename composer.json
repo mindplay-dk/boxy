@@ -1,0 +1,23 @@
+{
+    "name": "mindplay/boxy",
+    "description": "Open, simple, type-hinted service container",
+    "type": "library",
+    "license": "LGPL-3.0+",
+    "authors": [
+        {
+            "name": "Rasmus Schultz",
+            "email": "rasmus@mindplay.dk"
+        }
+    ],
+    "require": {
+        "mindplay/filereflection": "^1.1"
+    },
+    "require-dev": {
+        "phpunit/php-code-coverage": "2.*@dev"
+    },
+    "autoload": {
+        "psr-4": {
+            "mindplay\\boxy\\": "src/"
+        }
+    }
+}
