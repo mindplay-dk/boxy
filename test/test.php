@@ -218,6 +218,41 @@ test(
     }
 );
 
+test(
+    'can add service objects directly',
+    function () {
+        $c = new ServiceContainer();
+
+        $c->add(new Database());
+
+        $got_db = false;
+
+        $c->call(function (Database $db) use (&$got_db) {
+            if ($db instanceof Database) {
+                $got_db = true;
+            }
+        });
+
+        ok($got_db, 'can get directly added service object');
+
+        expect(
+            'RuntimeException',
+            'should throw on conflicting service object registration',
+            function () use ($c) {
+                $c->add(new Database());
+            }
+        );
+
+        expect(
+            'InvalidArgumentException',
+            'should throw on invalid argument',
+            function () use ($c) {
+                $c->add('FUDGE');
+            }
+        );
+    }
+);
+
 // Report coverage:
 
 if (coverage()) {

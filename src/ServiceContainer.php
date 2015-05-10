@@ -8,6 +8,7 @@ use Closure;
 use ReflectionException;
 use ReflectionParameter;
 use RuntimeException;
+use InvalidArgumentException;
 use ReflectionFunction;
 
 /**
@@ -46,11 +47,33 @@ class ServiceContainer
     {
         $type = $this->getReturnType($func);
 
-        if (isset($this->funcs[$type])) {
+        if (isset($this->funcs[$type]) || isset($this->services[$type])) {
             throw new RuntimeException("duplicate service registration for: {$type}");
         }
 
         $this->funcs[$type] = $func;
+    }
+
+    /**
+     * Registers a new service object directly
+     *
+     * @param object $object
+     */
+    public function add($object)
+    {
+        if (!is_object($object)) {
+            $type = gettype($object);
+
+            throw new InvalidArgumentException("unexpected argument type: {$type}");
+        }
+
+        $type = get_class($object);
+
+        if (isset($this->funcs[$type]) || isset($this->services[$type])) {
+            throw new RuntimeException("duplicate service registration for: {$type}");
+        }
+
+        $this->services[$type] = $object;
     }
 
     /**
