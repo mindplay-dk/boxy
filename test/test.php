@@ -62,6 +62,11 @@ class ServiceProvider implements Provider
     }
 }
 
+class Counter
+{
+    public $count = 0;
+}
+
 // Setup coverage:
 
 if (coverage()) {
@@ -433,6 +438,85 @@ test(
     }
 );
 
+test(
+    'Can configure services',
+    function () {
+        $c = new Container();
+
+        $c->addService(
+            /** @return Counter */
+            function () {
+                return new Counter();
+            }
+        );
+
+        $c->configure(function (Counter $counter) {
+            $counter->count += 1;
+        });
+
+        $count = 0;
+
+        $c->provide(function (Counter $counter) use (&$count) {
+            $count = $counter->count;
+        });
+
+        eq($count, 1, 'can configure service before initialization');
+
+        $c->configure(function (Counter $counter) {
+            $counter->count += 1;
+        });
+
+        $c->provide(function (Counter $counter) use (&$count) {
+            $count = $counter->count;
+        });
+
+        eq($count, 2, 'can configure service after initialization');
+
+        expect(
+            'InvalidArgumentException',
+            'should throw on function with more than one argument',
+            function () use ($c) {
+                $c->configure(function (Counter $counter, Database $db) {});
+            }
+        );
+    }
+);
+
+test(
+    'Can configure components',
+    function () {
+        $c = new Container();
+
+        $c->addFactory(
+            /** @return Counter */
+            function () {
+                return new Counter();
+            }
+        );
+
+        $c->configure(function (Counter $counter) {
+            $counter->count += 1;
+        });
+
+        $count = 0;
+
+        $c->provide(function (Counter $counter) use (&$count) {
+            $count = $counter->count;
+        });
+
+        eq($count, 1, 'can configure component before initialization');
+
+        $c->configure(function (Counter $counter) {
+            $counter->count += 1;
+        });
+
+        $c->provide(function (Counter $counter) use (&$count) {
+            $count = $counter->count;
+        });
+
+        eq($count, 2, 'can configure component after initialization');
+    }
+);
 
 // Report coverage:
 

@@ -39,11 +39,15 @@ class Container
     protected $is_service = array();
 
     /**
+     * @var (Closure[])[] map where class-name => `function ($component)`
+     */
+    protected $initializers = array();
+
+    /**
      * @var object[] map where class-name => single service object
      */
     protected $services = array();
 
-    // TODO support configuration after registration
     // TODO consistent terminology ("set" vs "replace")
     // TODO provide access to creator functions
     // TODO add support for sealed (immutable) container
@@ -144,7 +148,7 @@ class Container
      *
      * @param Closure $func a function with type-hinted parameters to inject services
      *
-     * @return mixed return value from the called function
+     * @return object return value from the called function
      */
     public function provide(Closure $func)
     {
@@ -180,6 +184,58 @@ class Container
     }
 
     /**
+     * Register a configuration function which will be run when a service/component is created.
+     *
+     * @param callable $initializer `function ($component)` initializes/configures a service/component
+     */
+    public function configure(Closure $initializer)
+    {
+        $reflection = new ReflectionFunction($initializer);
+
+        if ($reflection->getNumberOfParameters() !== 1) {
+            throw new InvalidArgumentException("configuration function must accept precisely one argument");
+        }
+
+        $params = $reflection->getParameters();
+
+        $type = $this->getArgumentType($params[0]);
+
+        $this->initializers[$type][] = $initializer;
+
+        if (isset($this->services[$type])) {
+            // service already created - initialize immediately:
+
+            $this->initialize($this->services[$type]);
+        }
+    }
+
+    /**
+     * Dispatch any registered configuration functions for a given service/component instance.
+     *
+     * @param object $component
+     *
+     * @return void
+     */
+    protected function initialize($component)
+    {
+        $type = get_class($component);
+
+        do {
+            if (isset($this->initializers[$type])) {
+                foreach ($this->initializers[$type] as $initialize) {
+                    call_user_func($initialize, $component);
+                }
+
+                if ($this->is_service[$type]) {
+                    // service initialization only happens once.
+
+                    unset($this->initializers[$type]);
+                }
+            }
+        } while ($type = get_parent_class($type));
+    }
+
+    /**
      * Resolve a service or component by class-name
      *
      * @param string $type service/component class-name
@@ -188,6 +244,10 @@ class Container
      */
     protected function resolve($type)
     {
+        /**
+         * @var object $component
+         */
+
         if (isset($this->services[$type])) {
             return $this->services[$type];
         }
@@ -207,6 +267,8 @@ class Container
 
             throw new RuntimeException("factory function for {$type} returned wrong type: {$wrong_type}");
         }
+
+        $this->initialize($component);
 
         if ($this->is_service[$type]) {
             $this->services[$type] = $component; // register component as a service
