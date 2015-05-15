@@ -97,33 +97,10 @@ class Container
      * Inserts an existing service object directly into the container
      *
      * @param object $service
-     * @param bool   $replace true to replace an existing service; false to throw on duplicate registration
      */
-    public function insertService($service, $replace = false)
+    public function insertService($service)
     {
-        if (!is_object($service)) {
-            $type = gettype($service);
-
-            throw new InvalidArgumentException("unexpected argument type: {$type}");
-        }
-
-        $type = get_class($service);
-
-        if ($replace) {
-            if (isset($this->creators[$type]) && !$this->is_service[$type]) {
-                throw new RuntimeException("conflicing service/component registration for: {$type}");
-            }
-        } else {
-            if (isset($this->creators[$type]) || isset($this->services[$type])) {
-                throw new RuntimeException("duplicate service/component registration for: {$type}");
-            }
-        }
-
-        $this->initialize($service);
-
-        $this->services[$type] = $service;
-
-        $this->is_service[$type] = true;
+        $this->setService($service, false);
     }
 
     /**
@@ -133,7 +110,7 @@ class Container
      */
     public function replaceService($service)
     {
-        $this->insertService($service, true);
+        $this->setService($service, true);
     }
 
     /**
@@ -275,13 +252,76 @@ class Container
      *
      * @param Closure $creator    factory function
      * @param bool    $is_service true to register as a service factory; false to register as a component factory
+     *
+     * @return void
+     *
+     * @throws RuntimeException on duplicate registration
+     */
+    protected function define(Closure $creator, $is_service)
+    {
+        $this->setCreator($creator, $is_service, false);
+    }
+
+    /**
+     * Overrides the service/component factory function for a given type
+     *
+     * @param Closure $creator    factory function
+     * @param bool    $is_service true to register as a service factory; false to register as a component factory
+     *
+     * @return void
+     *
+     * @throws RuntimeException on conflicting registration
+     */
+    protected function override(Closure $creator, $is_service)
+    {
+        $this->setCreator($creator, $is_service, true);
+    }
+
+    /**
+     * Inserts or replace an existing service object directly in the container
+     *
+     * @param object $service
+     * @param bool   $replace true to replace an existing service; false to throw on duplicate registration
+     */
+    protected function setService($service, $replace)
+    {
+        if (!is_object($service)) {
+            $type = gettype($service);
+
+            throw new InvalidArgumentException("unexpected argument type: {$type}");
+        }
+
+        $type = get_class($service);
+
+        if ($replace) {
+            if (isset($this->creators[$type]) && !$this->is_service[$type]) {
+                throw new RuntimeException("conflicing service/component registration for: {$type}");
+            }
+        } else {
+            if (isset($this->creators[$type]) || isset($this->services[$type])) {
+                throw new RuntimeException("duplicate service/component registration for: {$type}");
+            }
+        }
+
+        $this->initialize($service);
+
+        $this->services[$type] = $service;
+
+        $this->is_service[$type] = true;
+    }
+
+    /**
+     * Set the creator function for a service/component of a given type
+     *
+     * @param Closure $creator    factory function
+     * @param bool    $is_service true to register as a service factory; false to register as a component factory
      * @param bool    $override   true to override an existing service/component
      *
      * @return void
      *
      * @throws RuntimeException on duplicate registration
      */
-    protected function define(Closure $creator, $is_service, $override = false)
+    protected function setCreator(Closure $creator, $is_service, $override)
     {
         $type = $this->getReturnType($creator);
 
@@ -302,21 +342,6 @@ class Container
         $this->creators[$type] = $creator;
 
         $this->is_service[$type] = $is_service;
-    }
-
-    /**
-     * Overrides the service/component factory function for a given type
-     *
-     * @param Closure $creator    factory function
-     * @param bool    $is_service true to register as a service factory; false to register as a component factory
-     *
-     * @return void
-     *
-     * @throws RuntimeException on conflicting registration
-     */
-    protected function override(Closure $creator, $is_service)
-    {
-        $this->define($creator, $is_service, true);
     }
 
     /**
