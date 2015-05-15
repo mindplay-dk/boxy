@@ -49,9 +49,6 @@ class Container
      */
     protected $services = array();
 
-    // TODO provide access to creator functions
-    // TODO update documentation!
-
     /**
      * Register a new singleton service factory function
      *
@@ -100,7 +97,7 @@ class Container
      * Inserts an existing service object directly into the container
      *
      * @param object $service
-     * @param bool   $replace true to replace an existing service
+     * @param bool   $replace true to replace an existing service; false to throw on duplicate registration
      */
     public function insertService($service, $replace = false)
     {
@@ -292,6 +289,10 @@ class Container
             if ($override) {
                 if ($this->is_service[$type] !== $is_service) {
                     throw new RuntimeException("conflicing registration for service/component: {$type}");
+                }
+
+                if ($is_service && isset($this->services[$type])) {
+                    throw new RuntimeException("unable to redefine a service - already initialized: {$type}");
                 }
             } else {
                 throw new RuntimeException("duplicate registration for service/component: {$type}");

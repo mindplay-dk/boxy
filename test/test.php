@@ -397,7 +397,7 @@ test(
 
         expect(
             'InvalidArgumentException',
-            'should throw on invalid argument to add()',
+            'should throw on invalid argument to insertService()',
             function () use ($c) {
                 $c->insertService('FUDGE');
             }
@@ -405,7 +405,7 @@ test(
 
         expect(
             'InvalidArgumentException',
-            'should throw on invalid argument to replace()',
+            'should throw on invalid argument to replaceService()',
             function () use ($c) {
                 $c->replaceService('FUDGE');
             }
@@ -435,6 +435,48 @@ test(
                 $c->replaceService(new Mapper(new Database()));
             }
         );
+    }
+);
+
+test(
+    'Prevents service updates after initialization',
+    function () {
+        $c = new Container();
+
+        $c->register(new ServiceProvider);
+
+        $c->invoke(function (Database $db) {});
+
+        expect(
+            'RuntimeException',
+            'should throw on attempted service override after initialization',
+            function () use ($c) {
+                $c->overrideService(
+                    /** @return Database */
+                    function () {
+                        return new Database();
+                    }
+                );
+            }
+        );
+
+        $c->registerComponent(
+            /** @return Counter */
+            function () {
+                return new Counter();
+            }
+        );
+
+        $c->invoke(function (Counter $counter) {});
+
+        $c->overrideComponent(
+            /** @return Counter */
+            function () {
+                return new Counter();
+            }
+        );
+
+        ok(true, 'should not throw on component override');
     }
 );
 

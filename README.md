@@ -1,7 +1,11 @@
 Boxy
 ====
 
-Open, simple, type-hinted service container for singleton service objects.
+Open, simple, type-hinted (and type-checked) dependency injection container.
+
+Definitely inspired by [Pimple](http://pimple.sensiolabs.org/) but optimized for full
+IDE support, e.g. design-time and run-time type-checking, both on the provider and
+consumer side, in modern IDEs such as [Php Storm](https://www.jetbrains.com/phpstorm/) :v:
 
 [![Build Status](https://travis-ci.org/mindplay-dk/boxy.png)](https://travis-ci.org/mindplay-dk/boxy)
 
@@ -10,20 +14,26 @@ Open, simple, type-hinted service container for singleton service objects.
 [![Scrutinizer Code Quality](https://scrutinizer-ci.com/g/mindplay-dk/boxy/badges/quality-score.png)](https://scrutinizer-ci.com/g/mindplay-dk/boxy/)
 
 
-### Usage
+### Basic Usage
 
-Just three public methods:
+Create an instance of the Container:
 
 ```PHP
-$c = new ServiceContainer();
+use mindplay\boxy\Container;
 
-// providers can directly ("eagerly") inject service objects:
+$container = new Container();
+```
 
-$c->add(new Database());
+Service objects can be inserted directly (eaglerly) into the container:
 
-// or inject them via ("lazy") factory functions:
+```PHP
+$container->insertService(new Database());
+```
 
-$c->register(
+Or you can register factory functions to create services as late as possible:
+
+```PHP
+$container->registerService(
     /** @return Mapper (this annotation gets parsed and resolved) */
     function (Database $db) {
         // type-hints on arguments are resolved and Database dependency provided
@@ -31,13 +41,100 @@ $c->register(
         return new Mapper($db); // return type will be checked
     }
 );
+```
 
-// consumers can now ask for services via the call-method:
+Consumers can then ask for services by providing a function to be invoked:
 
-$c->call(function (Database $db, Mapper $mapper) {
-    // type-hints are resolved - the Mapper and Database instance
-    // are constructed as needed and injected for you.
+```PHP
+$container->invoke(function (Database $db, Mapper $mapper) {
+    // type-hints on arguments are resolved - the Mapper and Database instance
+    // are constructed as needed and provided for the consumer.
 });
 ```
 
-That's all.
+
+### Component Factory Usage
+
+You can register factory functions to create components on demand: 
+
+```PHP
+$container->registerComponent(
+    /** @return ArticleFinder */
+    function (Database $db) {
+        return new ArticleFinder($db);
+    }
+);
+```
+
+Consumers can then ask for a new component instance the same way they ask for services:
+
+```PHP
+$container->invoke(function (ArticleFinder $finder) {
+    // a new ArticleFinder component is created every time you call invoke
+});
+```
+
+
+### Configuring Services 
+
+You can register additional configuration functions for a service:
+
+```PHP
+$container->configure(function (Database $db) {
+    $db->exec("set names utf8");
+});
+```
+
+Configuration functions will be executed as late as possible, e.g. the first
+time you call `invoke()` and ask for the configured service. (If the service
+has already been initialized, the configuration function will execute immediately.)
+
+
+### Overriding Services
+
+You can override a previously registered service creation function:
+
+```PHP
+$container->overrideService(
+    /** @return Database */
+    function () {
+        return new Database();
+    }
+);
+```
+
+You can override component factory functions as well, at any time; note that
+overriding a service creation function is only possible before the service
+is initialized - an attempted override after initialization will generate
+an exception.
+
+
+### Packaged Service Providers
+
+You can package service/component definitions for easy reuse by implementing
+the `Provider` interface:
+
+```PHP
+use mindplay\boxy\Provider;
+
+class ServiceProvider implements Provider
+{
+    public function register(Container $container)
+    {
+        $container->registerService(
+            /** @return Database */
+            function () {
+                return new Database();
+            }
+        );
+    }
+}
+```
+
+Then register your custom provider with your container instance:
+
+```PHP
+$container->register(new ServiceProvider);
+```
+
+And there you have it: a letter opener. *Weenie Man Awaaay!*
