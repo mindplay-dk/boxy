@@ -47,6 +47,7 @@ class Container
     // TODO consistent terminology ("set" vs "replace")
     // TODO provide access to creator functions
     // TODO add support for sealed (immutable) container
+    // TODO update documentation!
 
     /**
      * Register a new singleton service factory function
