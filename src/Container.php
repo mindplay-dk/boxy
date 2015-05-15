@@ -23,7 +23,8 @@ class Container
     const RETURN_PATTERN = '/@return\s+(?<name>[\w\\\\]+)\b/';
 
     /**
-     * @type string pattern for parsing an argument type from a ReflectionParameter string
+     * @var string pattern for parsing an argument type from a ReflectionParameter string
+     *
      * @see getArgumentType()
      */
     const ARG_PATTERN = '/.*\[\s*(?:\<required\>|\<optional\>)\s*([^\s]+)/';
