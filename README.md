@@ -92,9 +92,9 @@ $container->invoke(function (ArticleFinder $finder) {
 ```
 
 
-### Configuring Services 
+### Configuring Services and Components 
 
-You can register additional configuration functions for a service:
+You can register additional configuration functions for a service or component:
 
 ```PHP
 $container->configure(function (Database $db) {
@@ -103,7 +103,7 @@ $container->configure(function (Database $db) {
 ```
 
 Configuration functions will be executed as late as possible, e.g. the first
-time you call `invoke()` and ask for the configured service. (If the service
+time you call `invoke()` and ask for the service or component. (If a service
 has already been initialized, the configuration function will execute immediately.)
 
 
