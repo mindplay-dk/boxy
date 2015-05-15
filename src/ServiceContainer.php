@@ -43,7 +43,7 @@ class ServiceContainer
      *
      * @param Closure $func `function (...$service) : T` creates and initializes the T service
      */
-    public function register($func)
+    public function register(Closure $func)
     {
         $type = $this->getReturnType($func);
 
@@ -83,7 +83,7 @@ class ServiceContainer
      *
      * @return mixed return value from the called function
      */
-    public function call($func)
+    public function call(Closure $func)
     {
         $f = new ReflectionFunction($func);
 
@@ -153,11 +153,13 @@ class ServiceContainer
     }
 
     /**
+     * Reflect on the return-type of a given Closure, by parsing it's doc-block.
+     *
      * @param Closure $func
      *
-     * @return string return type (reflected via doc-block; resolved as fully-qualified class-name)
+     * @return string return type (resolved as fully-qualified class-name)
      */
-    protected function getReturnType($func)
+    protected function getReturnType(Closure $func)
     {
         $reflection = new ReflectionFunction($func);
 
