@@ -37,7 +37,7 @@ $c->register(
 $c->call(function (Database $db, Mapper $mapper) {
     // type-hints are resolved - the Mapper and Database instance
     // are constructed as needed and injected for you.
-}
+});
 ```
 
 That's all.
