@@ -1,6 +1,6 @@
 <?php
 
-use mindplay\boxy\ServiceContainer;
+use mindplay\boxy\Container;
 
 use foo\Bar;
 
@@ -40,7 +40,7 @@ if (coverage()) {
 
 // Tests:
 
-$c = new ServiceContainer();
+$c = new Container();
 
 test(
     'Can register services',
@@ -170,7 +170,7 @@ test(
             }
         );
 
-        $db_c = new ServiceContainer();
+        $db_c = new Container();
 
         expect(
             'RuntimeException',
@@ -180,7 +180,7 @@ test(
             }
         );
 
-        $db_c = new ServiceContainer();
+        $db_c = new Container();
 
         $db_c->addService(
             /** @return Mapper (this type-hint is wrong!) */
@@ -197,7 +197,7 @@ test(
             }
         );
 
-        $db_c = new ServiceContainer();
+        $db_c = new Container();
 
         expect(
             'RuntimeException',
@@ -216,7 +216,7 @@ test(
 test(
     'can handle namespace aliases',
     function () {
-        $c = new ServiceContainer();
+        $c = new Container();
 
         $c->addService(
             /**
@@ -242,19 +242,17 @@ test(
 test(
     'can add service objects directly',
     function () {
-        $c = new ServiceContainer();
+        $c = new Container();
 
         $c->add(new Database());
 
-        $got_db = false;
+        $got_db = null;
 
         $c->provide(function (Database $db) use (&$got_db) {
-            if ($db instanceof Database) {
-                $got_db = true;
-            }
+            $got_db = $db;
         });
 
-        ok($got_db, 'can get directly added service object');
+        ok($got_db instanceof Database, 'can get directly added service object');
 
         expect(
             'RuntimeException',
@@ -266,11 +264,29 @@ test(
 
         expect(
             'InvalidArgumentException',
-            'should throw on invalid argument',
+            'should throw on invalid argument to add()',
             function () use ($c) {
                 $c->add('FUDGE');
             }
         );
+
+        expect(
+            'InvalidArgumentException',
+            'should throw on invalid argument to replace()',
+            function () use ($c) {
+                $c->replace('FUDGE');
+            }
+        );
+
+        $c->replace(new Database());
+
+        $new_db = null;
+
+        $c->provide(function (Database $db) use (&$new_db) {
+            $new_db = $db;
+        });
+
+        ok($new_db !== $got_db, 'can directly replace service object');
     }
 );
 

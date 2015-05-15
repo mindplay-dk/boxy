@@ -15,7 +15,7 @@ use ReflectionFunction;
  * This class implements a simple, type-hinted container to hold an open set
  * of singleton service objects.
  */
-class ServiceContainer
+class Container
 {
     /**
      * @var string regular expression to match the `@return` annotation in doc-blocks
@@ -86,6 +86,26 @@ class ServiceContainer
         if (isset($this->funcs[$type]) || isset($this->services[$type])) {
             throw new RuntimeException("duplicate service registration for: {$type}");
         }
+
+        $this->services[$type] = $object;
+    }
+
+    /**
+     * Register or replace a new or existing service object directly
+     *
+     * @param object $object
+     */
+    public function replace($object)
+    {
+        if (!is_object($object)) {
+            $type = gettype($object);
+
+            throw new InvalidArgumentException("unexpected argument type: {$type}");
+        }
+
+        $type = get_class($object);
+
+        unset($this->funcs[$type]);
 
         $this->services[$type] = $object;
     }
