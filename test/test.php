@@ -1,6 +1,7 @@
 <?php
 
 use mindplay\boxy\Container;
+use mindplay\boxy\Provider;
 
 use foo\Bar;
 
@@ -28,6 +29,39 @@ class Mapper
     }
 }
 
+class UserFactory
+{
+    /**
+     * @var Mapper
+     */
+    public $mapper;
+
+    public function __construct(Mapper $mapper)
+    {
+        $this->mapper = $mapper;
+    }
+}
+
+class ServiceProvider implements Provider
+{
+    public function register(Container $container)
+    {
+        $container->addService(
+            /** @return Database */
+            function () {
+                return new Database();
+            }
+        );
+
+        $container->addService(
+            /** @return Mapper */
+            function (Database $db) {
+                return new Mapper($db);
+            }
+        );
+    }
+}
+
 // Setup coverage:
 
 if (coverage()) {
@@ -40,11 +74,11 @@ if (coverage()) {
 
 // Tests:
 
-$c = new Container();
-
 test(
     'Can register services',
-    function () use ($c) {
+    function () {
+        $c = new Container();
+
         $c->addService(
             /** @return Database */
             function () {
@@ -98,8 +132,75 @@ test(
 );
 
 test(
+    'Can register component factory functions',
+    function () {
+        $c = new Container();
+
+        $c->register(new ServiceProvider);
+
+        $c->addFactory(
+            /** @return UserFactory */
+            function (Mapper $mapper) {
+                return new UserFactory($mapper);
+            }
+        );
+
+        ok(true, 'call to addFactory() succeeded');
+
+        $original_factory_called = false;
+
+        expect(
+            'RuntimeException',
+            'should throw on duplicate registration',
+            function () use ($c) {
+                $c->addFactory(
+                    /** @return UserFactory */
+                    function (Mapper $mapper) {
+                        return new UserFactory($mapper);
+                    }
+                );
+            }
+        );
+
+        $replacement_factory_called = false;
+
+        $c->setFactory(
+            /** @return UserFactory */
+            function (Mapper $mapper) use (&$replacement_factory_called) {
+                $replacement_factory_called = true;
+
+                return new UserFactory($mapper);
+            }
+        );
+
+        $c->provide(function (UserFactory $users) {});
+
+        ok($original_factory_called === false, 'original factory function never called');
+
+        ok($replacement_factory_called === true, 'replacement factory function was called');
+
+        expect(
+            'RuntimeException',
+            'should throw on conflicting registration',
+            function () use ($c) {
+                $c->setFactory(
+                    /** @return Database */
+                    function () {
+                        return new Database(); // already registered as a service
+                    }
+                );
+            }
+        );
+    }
+);
+
+test(
     'can resolve service co-dependencies',
-    function () use ($c) {
+    function () {
+        $c = new Container();
+
+        $c->register(new ServiceProvider);
+
         $called = false;
         $got_mapper = false;
         $got_db = false;
@@ -126,7 +227,11 @@ test(
 
 test(
     'calls factory functions only once',
-    function () use ($c) {
+    function () {
+        $c = new Container();
+
+        $c->register(new ServiceProvider);
+
         $first = null;
         $second = null;
 
@@ -144,7 +249,11 @@ test(
 
 test(
     'can provide multiple dependencies',
-    function () use ($c) {
+    function () {
+        $c = new Container();
+
+        $c->register(new ServiceProvider);
+
         $got_db = null;
         $got_mapper = null;
 
@@ -161,7 +270,11 @@ test(
 
 test(
     'throws on various error conditions',
-    function () use ($c) {
+    function () {
+        $c = new Container();
+
+        $c->register(new ServiceProvider);
+
         expect(
             'RuntimeException',
             'should throw for undefined service (and class not found)',
@@ -217,6 +330,8 @@ test(
     'can handle namespace aliases',
     function () {
         $c = new Container();
+
+        $c->register(new ServiceProvider);
 
         $c->addService(
             /**
@@ -289,6 +404,7 @@ test(
         ok($new_db !== $got_db, 'can directly replace service object');
     }
 );
+
 
 // Report coverage:
 

@@ -13,7 +13,7 @@ use ReflectionFunction;
 
 /**
  * This class implements a simple, type-hinted container to hold an open set
- * of singleton service objects.
+ * of singleton service objects, and/or component factory functions.
  */
 class Container
 {
@@ -34,12 +34,17 @@ class Container
     protected $funcs = array();
 
     /**
+     * @var bool[] map where class-name => flag indicating whether a function is a component factory
+     */
+    protected $is_factory = array();
+
+    /**
      * @var object[] map where class-name => service object
      */
     protected $services = array();
 
     /**
-     * Register a new service factory function
+     * Register a new singleton service factory function
      *
      * @param Closure $func `function (...$service) : T` creates and initializes the T service
      *
@@ -50,14 +55,16 @@ class Container
         $type = $this->getReturnType($func);
 
         if (isset($this->funcs[$type]) || isset($this->services[$type])) {
-            throw new RuntimeException("duplicate service registration for: {$type}");
+            throw new RuntimeException("duplicate service/component registration for: {$type}");
         }
 
         $this->funcs[$type] = $func;
+
+        $this->is_factory[$type] = false;
     }
 
     /**
-     * Register or replace a new or existing service factory function
+     * Register or replace a new or existing singleton service factory function
      *
      * @param Closure $func `function (...$service) : T` creates and initializes the T service
      */
@@ -66,6 +73,46 @@ class Container
         $type = $this->getReturnType($func);
 
         $this->funcs[$type] = $func;
+
+        $this->is_factory[$type] = false;
+    }
+
+    /**
+     * Register a new component factory function
+     *
+     * @param Closure $func `function (...$service) : T` creates and initializes the T component
+     *
+     * @throws RuntimeException on attempt to duplicate a factory function
+     */
+    public function addFactory(Closure $func)
+    {
+        $type = $this->getReturnType($func);
+
+        if (isset($this->funcs[$type]) || isset($this->services[$type])) {
+            throw new RuntimeException("duplicate service/component registration for: {$type}");
+        }
+
+        $this->funcs[$type] = $func;
+
+        $this->is_factory[$type] = true;
+    }
+
+    /**
+     * Register or replace a new or existing component factory function
+     *
+     * @param Closure $func `function (...$service) : T` creates and initializes the T component
+     */
+    public function setFactory(Closure $func)
+    {
+        $type = $this->getReturnType($func);
+
+        if (isset($this->services[$type])) {
+            throw new RuntimeException("conflicting component registration for service: {$type}");
+        }
+
+        $this->funcs[$type] = $func;
+
+        $this->is_factory[$type] = true;
     }
 
     /**
@@ -84,7 +131,7 @@ class Container
         $type = get_class($object);
 
         if (isset($this->funcs[$type]) || isset($this->services[$type])) {
-            throw new RuntimeException("duplicate service registration for: {$type}");
+            throw new RuntimeException("duplicate service/component registration for: {$type}");
         }
 
         $this->services[$type] = $object;
@@ -129,13 +176,23 @@ class Container
             } catch (ReflectionException $e) {
                 $type = $this->getArgumentType($param);
 
-                throw new RuntimeException("undefined service: {$type}");
+                throw new RuntimeException("undefined service/component: {$type}");
             }
 
             $args[] = $this->getService($type);
         }
 
         return call_user_func_array($func, $args);
+    }
+
+    /**
+     * Register service and component definitions packaged by a given Provider
+     *
+     * @param Provider $provider
+     */
+    public function register(Provider $provider)
+    {
+        $provider->register($this);
     }
 
     /**
@@ -147,22 +204,28 @@ class Container
     {
         if (!isset($this->services[$type])) {
             if (!isset($this->funcs[$type])) {
-                throw new RuntimeException("undefined service: {$type}");
+                throw new RuntimeException("undefined service/component: {$type}");
             }
 
             $func = $this->funcs[$type];
 
-            $service = $this->provide($func);
+            $component = $this->provide($func);
 
-            if (!$service instanceof $type) {
-                $wrong_type = is_object($service)
-                    ? get_class($service)
-                    : gettype($service);
+            if (!$component instanceof $type) {
+                $wrong_type = is_object($component)
+                    ? get_class($component)
+                    : gettype($component);
 
                 throw new RuntimeException("factory function for {$type} returned wrong type: {$wrong_type}");
             }
 
-            $this->services[$type] = $service;
+            if ($this->is_factory[$type]) {
+                return $component; // factory function must run every time to create new components
+            }
+
+            // register component as a singleton service:
+
+            $this->services[$type] = $component;
         }
 
         return $this->services[$type];
