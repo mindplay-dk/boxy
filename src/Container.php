@@ -44,6 +44,9 @@ class Container
     protected $services = array();
 
     // TODO support configuration after registration
+    // TODO consistent terminology ("set" vs "replace")
+    // TODO provide access to creator functions
+    // TODO add support for sealed (immutable) container
 
     /**
      * Register a new singleton service factory function
