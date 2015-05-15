@@ -137,6 +137,10 @@ class ServiceContainer
     /**
      * Extract the argument type (class name) from the first argument of a given function
      *
+     * Used for diagnostics and error-handling purposes only.
+     *
+     * @see call()
+     *
      * @param ReflectionParameter $param
      *
      * @return string class name
