@@ -46,14 +46,14 @@ class ServiceProvider implements Provider
 {
     public function register(Container $container)
     {
-        $container->addService(
+        $container->registerService(
             /** @return Database */
             function () {
                 return new Database();
             }
         );
 
-        $container->addService(
+        $container->registerService(
             /** @return Mapper */
             function (Database $db) {
                 return new Mapper($db);
@@ -84,7 +84,7 @@ test(
     function () {
         $c = new Container();
 
-        $c->addService(
+        $c->registerService(
             /** @return Database */
             function () {
                 return new Database();
@@ -93,7 +93,7 @@ test(
 
         $original_factory_called = false;
 
-        $c->addService(
+        $c->registerService(
             /** @return Mapper */
             function (Database $db) use (&$original_factory_called) {
                 $original_factory_called = true;
@@ -108,7 +108,7 @@ test(
             'RuntimeException',
             'should throw on duplicate registration',
             function () use ($c) {
-                $c->addService(
+                $c->registerService(
                     /** @return Database */
                     function () {
                         return new Database();
@@ -119,7 +119,7 @@ test(
 
         $replacement_factory_called = false;
 
-        $c->setService(
+        $c->overrideService(
             /** @return Mapper */
             function (Database $db) use (&$replacement_factory_called) {
                 $replacement_factory_called = true;
@@ -128,7 +128,7 @@ test(
             }
         );
 
-        $c->provide(function (Mapper $mapper) {});
+        $c->invoke(function (Mapper $mapper) {});
 
         ok($original_factory_called === false, 'original factory function never called');
 
@@ -143,7 +143,7 @@ test(
 
         $c->register(new ServiceProvider);
 
-        $c->addFactory(
+        $c->registerComponent(
             /** @return UserFactory */
             function (Mapper $mapper) {
                 return new UserFactory($mapper);
@@ -158,7 +158,7 @@ test(
             'RuntimeException',
             'should throw on duplicate registration',
             function () use ($c) {
-                $c->addFactory(
+                $c->registerComponent(
                     /** @return UserFactory */
                     function (Mapper $mapper) {
                         return new UserFactory($mapper);
@@ -169,7 +169,7 @@ test(
 
         $replacement_factory_called = false;
 
-        $c->setFactory(
+        $c->overrideComponent(
             /** @return UserFactory */
             function (Mapper $mapper) use (&$replacement_factory_called) {
                 $replacement_factory_called = true;
@@ -178,7 +178,7 @@ test(
             }
         );
 
-        $c->provide(function (UserFactory $users) {});
+        $c->invoke(function (UserFactory $users) {});
 
         ok($original_factory_called === false, 'original factory function never called');
 
@@ -188,7 +188,7 @@ test(
             'RuntimeException',
             'should throw on conflicting registration',
             function () use ($c) {
-                $c->setFactory(
+                $c->overrideComponent(
                     /** @return Database */
                     function () {
                         return new Database(); // already registered as a service
@@ -200,11 +200,11 @@ test(
         $first_result = null;
         $second_result = null;
 
-        $c->provide(function (UserFactory $users) use (&$first_result) {
+        $c->invoke(function (UserFactory $users) use (&$first_result) {
             $first_result = $users;
         });
 
-        $c->provide(function (UserFactory $users) use (&$second_result) {
+        $c->invoke(function (UserFactory $users) use (&$second_result) {
             $second_result = $users;
         });
 
@@ -223,7 +223,7 @@ test(
         $got_mapper = false;
         $got_db = false;
 
-        $c->provide(function (Mapper $mapper) use (&$called, &$got_mapper, &$got_db) {
+        $c->invoke(function (Mapper $mapper) use (&$called, &$got_mapper, &$got_db) {
             $called = true;
 
             if ($mapper instanceof Mapper) {
@@ -253,11 +253,11 @@ test(
         $first = null;
         $second = null;
 
-        $c->provide(function (Database $db) use (&$first) {
+        $c->invoke(function (Database $db) use (&$first) {
             $first = $db;
         });
 
-        $c->provide(function (Database $db) use (&$second) {
+        $c->invoke(function (Database $db) use (&$second) {
             $second = $db;
         });
 
@@ -275,7 +275,7 @@ test(
         $got_db = null;
         $got_mapper = null;
 
-        $c->provide(function (Database $db, Mapper $mapper) use (&$got_db, &$got_mapper) {
+        $c->invoke(function (Database $db, Mapper $mapper) use (&$got_db, &$got_mapper) {
             $got_db = $db;
             $got_mapper = $mapper;
         });
@@ -297,7 +297,7 @@ test(
             'RuntimeException',
             'should throw for undefined service (and class not found)',
             function () use ($c) {
-                $c->provide(function (Foo $foo) {});
+                $c->invoke(function (Foo $foo) {});
             }
         );
 
@@ -307,13 +307,13 @@ test(
             'RuntimeException',
             'should throw for undefined service (for existing class)',
             function() use ($db_c) {
-                $db_c->provide(function (Database $db) {});
+                $db_c->invoke(function (Database $db) {});
             }
         );
 
         $db_c = new Container();
 
-        $db_c->addService(
+        $db_c->registerService(
             /** @return Mapper (this type-hint is wrong!) */
             function () {
                 return new Database();
@@ -324,7 +324,7 @@ test(
             'RuntimeException',
             'should throw when factory function returns the wrong type',
             function () use ($db_c) {
-                $db_c->provide(function (Mapper $mapper) {});
+                $db_c->invoke(function (Mapper $mapper) {});
             }
         );
 
@@ -334,7 +334,7 @@ test(
             'RuntimeException',
             'should throw on missing @return annotation in factory functions',
             function () use ($db_c) {
-                $db_c->addService(
+                $db_c->registerService(
                     function () {
                         return new Database();
                     }
@@ -351,7 +351,7 @@ test(
 
         $c->register(new ServiceProvider);
 
-        $c->addService(
+        $c->registerService(
             /**
              * @return Bar
              */
@@ -362,7 +362,7 @@ test(
 
         $got_bar = false;
 
-        $c->provide(function (Bar $bar) use (&$got_bar) {
+        $c->invoke(function (Bar $bar) use (&$got_bar) {
             if ($bar instanceof Bar) {
                 $got_bar = true;
             }
@@ -377,11 +377,11 @@ test(
     function () {
         $c = new Container();
 
-        $c->add(new Database());
+        $c->insertService(new Database());
 
         $got_db = null;
 
-        $c->provide(function (Database $db) use (&$got_db) {
+        $c->invoke(function (Database $db) use (&$got_db) {
             $got_db = $db;
         });
 
@@ -391,7 +391,7 @@ test(
             'RuntimeException',
             'should throw on conflicting service object registration',
             function () use ($c) {
-                $c->add(new Database());
+                $c->insertService(new Database());
             }
         );
 
@@ -399,7 +399,7 @@ test(
             'InvalidArgumentException',
             'should throw on invalid argument to add()',
             function () use ($c) {
-                $c->add('FUDGE');
+                $c->insertService('FUDGE');
             }
         );
 
@@ -407,21 +407,21 @@ test(
             'InvalidArgumentException',
             'should throw on invalid argument to replace()',
             function () use ($c) {
-                $c->replace('FUDGE');
+                $c->replaceService('FUDGE');
             }
         );
 
-        $c->replace(new Database());
+        $c->replaceService(new Database());
 
         $new_db = null;
 
-        $c->provide(function (Database $db) use (&$new_db) {
+        $c->invoke(function (Database $db) use (&$new_db) {
             $new_db = $db;
         });
 
         ok($new_db !== $got_db, 'can directly replace service object');
 
-        $c->addFactory(
+        $c->registerComponent(
             /** @return Mapper */
             function (Database $db) {
                 return new Mapper($db);
@@ -432,7 +432,7 @@ test(
             'RuntimeException',
             'should throw on conflicting component registration',
             function () use ($c) {
-                $c->replace(new Mapper(new Database()));
+                $c->replaceService(new Mapper(new Database()));
             }
         );
     }
@@ -443,7 +443,7 @@ test(
     function () {
         $c = new Container();
 
-        $c->addService(
+        $c->registerService(
             /** @return Counter */
             function () {
                 return new Counter();
@@ -456,7 +456,7 @@ test(
 
         $count = 0;
 
-        $c->provide(function (Counter $counter) use (&$count) {
+        $c->invoke(function (Counter $counter) use (&$count) {
             $count = $counter->count;
         });
 
@@ -466,7 +466,7 @@ test(
             $counter->count += 1;
         });
 
-        $c->provide(function (Counter $counter) use (&$count) {
+        $c->invoke(function (Counter $counter) use (&$count) {
             $count = $counter->count;
         });
 
@@ -487,7 +487,7 @@ test(
     function () {
         $c = new Container();
 
-        $c->addFactory(
+        $c->registerComponent(
             /** @return Counter */
             function () {
                 return new Counter();
@@ -500,7 +500,7 @@ test(
 
         $count = 0;
 
-        $c->provide(function (Counter $counter) use (&$count) {
+        $c->invoke(function (Counter $counter) use (&$count) {
             $count = $counter->count;
         });
 
@@ -510,7 +510,7 @@ test(
             $counter->count += 1;
         });
 
-        $c->provide(function (Counter $counter) use (&$count) {
+        $c->invoke(function (Counter $counter) use (&$count) {
             $count = $counter->count;
         });
 
