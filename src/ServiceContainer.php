@@ -45,7 +45,7 @@ class ServiceContainer
      *
      * @throws RuntimeException on attempt to duplicate a factory function
      */
-    public function addFactory(Closure $func)
+    public function addService(Closure $func)
     {
         $type = $this->getReturnType($func);
 
@@ -61,7 +61,7 @@ class ServiceContainer
      *
      * @param Closure $func `function (...$service) : T` creates and initializes the T service
      */
-    public function setFactory(Closure $func)
+    public function setService(Closure $func)
     {
         $type = $this->getReturnType($func);
 
@@ -97,7 +97,7 @@ class ServiceContainer
      *
      * @return mixed return value from the called function
      */
-    public function call(Closure $func)
+    public function provide(Closure $func)
     {
         $f = new ReflectionFunction($func);
 
@@ -132,7 +132,7 @@ class ServiceContainer
 
             $func = $this->funcs[$type];
 
-            $service = $this->call($func);
+            $service = $this->provide($func);
 
             if (!$service instanceof $type) {
                 $wrong_type = is_object($service)
@@ -153,7 +153,7 @@ class ServiceContainer
      *
      * Used for diagnostics and error-handling purposes only.
      *
-     * @see call()
+     * @see invoke()
      *
      * @param ReflectionParameter $param
      *

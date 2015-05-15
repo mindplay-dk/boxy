@@ -45,7 +45,7 @@ $c = new ServiceContainer();
 test(
     'Can register services',
     function () use ($c) {
-        $c->addFactory(
+        $c->addService(
             /** @return Database */
             function () {
                 return new Database();
@@ -54,7 +54,7 @@ test(
 
         $original_factory_called = false;
 
-        $c->addFactory(
+        $c->addService(
             /** @return Mapper */
             function (Database $db) use (&$original_factory_called) {
                 $original_factory_called = true;
@@ -69,7 +69,7 @@ test(
             'RuntimeException',
             'should throw on duplicate registration',
             function () use ($c) {
-                $c->addFactory(
+                $c->addService(
                     /** @return Database */
                     function () {
                         return new Database();
@@ -80,7 +80,7 @@ test(
 
         $replacement_factory_called = false;
 
-        $c->setFactory(
+        $c->setService(
             /** @return Mapper */
             function (Database $db) use (&$replacement_factory_called) {
                 $replacement_factory_called = true;
@@ -89,7 +89,7 @@ test(
             }
         );
 
-        $c->call(function (Mapper $mapper) {});
+        $c->provide(function (Mapper $mapper) {});
 
         ok($original_factory_called === false, 'original factory function never called');
 
@@ -104,7 +104,7 @@ test(
         $got_mapper = false;
         $got_db = false;
 
-        $c->call(function (Mapper $mapper) use (&$called, &$got_mapper, &$got_db) {
+        $c->provide(function (Mapper $mapper) use (&$called, &$got_mapper, &$got_db) {
             $called = true;
 
             if ($mapper instanceof Mapper) {
@@ -130,11 +130,11 @@ test(
         $first = null;
         $second = null;
 
-        $c->call(function (Database $db) use (&$first) {
+        $c->provide(function (Database $db) use (&$first) {
             $first = $db;
         });
 
-        $c->call(function (Database $db) use (&$second) {
+        $c->provide(function (Database $db) use (&$second) {
             $second = $db;
         });
 
@@ -148,7 +148,7 @@ test(
         $got_db = null;
         $got_mapper = null;
 
-        $c->call(function (Database $db, Mapper $mapper) use (&$got_db, &$got_mapper) {
+        $c->provide(function (Database $db, Mapper $mapper) use (&$got_db, &$got_mapper) {
             $got_db = $db;
             $got_mapper = $mapper;
         });
@@ -166,7 +166,7 @@ test(
             'RuntimeException',
             'should throw for undefined service (and class not found)',
             function () use ($c) {
-                $c->call(function (Foo $foo) {});
+                $c->provide(function (Foo $foo) {});
             }
         );
 
@@ -176,13 +176,13 @@ test(
             'RuntimeException',
             'should throw for undefined service (for existing class)',
             function() use ($db_c) {
-                $db_c->call(function (Database $db) {});
+                $db_c->provide(function (Database $db) {});
             }
         );
 
         $db_c = new ServiceContainer();
 
-        $db_c->addFactory(
+        $db_c->addService(
             /** @return Mapper (this type-hint is wrong!) */
             function () {
                 return new Database();
@@ -193,7 +193,7 @@ test(
             'RuntimeException',
             'should throw when factory function returns the wrong type',
             function () use ($db_c) {
-                $db_c->call(function (Mapper $mapper) {});
+                $db_c->provide(function (Mapper $mapper) {});
             }
         );
 
@@ -203,7 +203,7 @@ test(
             'RuntimeException',
             'should throw on missing @return annotation in factory functions',
             function () use ($db_c) {
-                $db_c->addFactory(
+                $db_c->addService(
                     function () {
                         return new Database();
                     }
@@ -218,7 +218,7 @@ test(
     function () {
         $c = new ServiceContainer();
 
-        $c->addFactory(
+        $c->addService(
             /**
              * @return Bar
              */
@@ -229,7 +229,7 @@ test(
 
         $got_bar = false;
 
-        $c->call(function (Bar $bar) use (&$got_bar) {
+        $c->provide(function (Bar $bar) use (&$got_bar) {
             if ($bar instanceof Bar) {
                 $got_bar = true;
             }
@@ -248,7 +248,7 @@ test(
 
         $got_db = false;
 
-        $c->call(function (Database $db) use (&$got_db) {
+        $c->provide(function (Database $db) use (&$got_db) {
             if ($db instanceof Database) {
                 $got_db = true;
             }
