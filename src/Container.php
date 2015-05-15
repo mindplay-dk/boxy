@@ -36,7 +36,7 @@ class Container
     /**
      * @var bool[] map where class-name => flag indicating whether a function is a component factory
      */
-    protected $is_factory = array();
+    protected $is_service = array();
 
     /**
      * @var object[] map where class-name => service object
@@ -52,15 +52,7 @@ class Container
      */
     public function addService(Closure $func)
     {
-        $type = $this->getReturnType($func);
-
-        if (isset($this->funcs[$type]) || isset($this->services[$type])) {
-            throw new RuntimeException("duplicate service/component registration for: {$type}");
-        }
-
-        $this->funcs[$type] = $func;
-
-        $this->is_factory[$type] = false;
+        $this->define($func, true);
     }
 
     /**
@@ -70,11 +62,7 @@ class Container
      */
     public function setService(Closure $func)
     {
-        $type = $this->getReturnType($func);
-
-        $this->funcs[$type] = $func;
-
-        $this->is_factory[$type] = false;
+        $this->override($func, true);
     }
 
     /**
@@ -86,15 +74,7 @@ class Container
      */
     public function addFactory(Closure $func)
     {
-        $type = $this->getReturnType($func);
-
-        if (isset($this->funcs[$type]) || isset($this->services[$type])) {
-            throw new RuntimeException("duplicate service/component registration for: {$type}");
-        }
-
-        $this->funcs[$type] = $func;
-
-        $this->is_factory[$type] = true;
+        $this->define($func, false);
     }
 
     /**
@@ -104,15 +84,7 @@ class Container
      */
     public function setFactory(Closure $func)
     {
-        $type = $this->getReturnType($func);
-
-        if (isset($this->services[$type])) {
-            throw new RuntimeException("conflicting component registration for service: {$type}");
-        }
-
-        $this->funcs[$type] = $func;
-
-        $this->is_factory[$type] = true;
+        $this->override($func, false);
     }
 
     /**
@@ -152,9 +124,13 @@ class Container
 
         $type = get_class($object);
 
-        unset($this->funcs[$type]);
+        if (isset($this->funcs[$type]) && ! $this->is_service[$type]) {
+            throw new RuntimeException("conflicing service/component registration for: {$type}");
+        }
 
         $this->services[$type] = $object;
+
+        $this->is_service[$type] = true;
     }
 
     /**
@@ -179,7 +155,7 @@ class Container
                 throw new RuntimeException("undefined service/component: {$type}");
             }
 
-            $args[] = $this->getService($type);
+            $args[] = $this->resolve($type);
         }
 
         return call_user_func_array($func, $args);
@@ -196,39 +172,87 @@ class Container
     }
 
     /**
-     * @param string $type service class-name
+     * Resolve a service or component by class-name
+     *
+     * @param string $type service/component class-name
      *
      * @return object service object
      */
-    protected function getService($type)
+    protected function resolve($type)
     {
-        if (!isset($this->services[$type])) {
-            if (!isset($this->funcs[$type])) {
-                throw new RuntimeException("undefined service/component: {$type}");
-            }
-
-            $func = $this->funcs[$type];
-
-            $component = $this->provide($func);
-
-            if (!$component instanceof $type) {
-                $wrong_type = is_object($component)
-                    ? get_class($component)
-                    : gettype($component);
-
-                throw new RuntimeException("factory function for {$type} returned wrong type: {$wrong_type}");
-            }
-
-            if ($this->is_factory[$type]) {
-                return $component; // factory function must run every time to create new components
-            }
-
-            // register component as a singleton service:
-
-            $this->services[$type] = $component;
+        if (isset($this->services[$type])) {
+            return $this->services[$type];
         }
 
-        return $this->services[$type];
+        if (!isset($this->funcs[$type])) {
+            throw new RuntimeException("undefined service/component: {$type}");
+        }
+
+        $func = $this->funcs[$type];
+
+        $component = $this->provide($func);
+
+        if (!$component instanceof $type) {
+            $wrong_type = is_object($component)
+                ? get_class($component)
+                : gettype($component);
+
+            throw new RuntimeException("factory function for {$type} returned wrong type: {$wrong_type}");
+        }
+
+        if ($this->is_service[$type]) {
+            $this->services[$type] = $component; // register component as a service
+        }
+
+        return $component;
+    }
+
+    /**
+     * Defines the service/component factory function for a given type
+     *
+     * @param Closure $func       factory function
+     * @param bool    $is_service true to register as a service factory; false to register as a component factory
+     *
+     * @return void
+     *
+     * @throws RuntimeException on duplicate registration
+     */
+    protected function define(Closure $func, $is_service)
+    {
+        $type = $this->getReturnType($func);
+
+        if (isset($this->services[$type]) || isset($this->funcs[$type])) {
+            throw new RuntimeException("duplicate registration for service/component: {$type}");
+        }
+
+        $this->funcs[$type] = $func;
+
+        $this->is_service[$type] = $is_service;
+    }
+
+    /**
+     * Overrides the service/component factory function for a given type
+     *
+     * @param Closure $func       factory function
+     * @param bool    $is_service true to register as a service factory; false to register as a component factory
+     *
+     * @return void
+     *
+     * @throws RuntimeException on conflicting registration
+     */
+    protected function override(Closure $func, $is_service)
+    {
+        $type = $this->getReturnType($func);
+
+        if (isset($this->services[$type]) || isset($this->funcs[$type])) {
+            if ($this->is_service[$type] !== $is_service) {
+                throw new RuntimeException("conflicing registration for service/component: {$type}");
+            }
+        }
+
+        $this->funcs[$type] = $func;
+
+        $this->is_service[$type] = $is_service;
     }
 
     /**

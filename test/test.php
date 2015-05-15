@@ -368,7 +368,7 @@ test(
 );
 
 test(
-    'can add service objects directly',
+    'can add and replace service objects directly',
     function () {
         $c = new Container();
 
@@ -415,6 +415,21 @@ test(
         });
 
         ok($new_db !== $got_db, 'can directly replace service object');
+
+        $c->addFactory(
+            /** @return Mapper */
+            function (Database $db) {
+                return new Mapper($db);
+            }
+        );
+
+        expect(
+            'RuntimeException',
+            'should throw on conflicting component registration',
+            function () use ($c) {
+                $c->replace(new Mapper(new Database()));
+            }
+        );
     }
 );
 
