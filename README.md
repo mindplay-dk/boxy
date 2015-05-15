@@ -52,6 +52,23 @@ $container->invoke(function (Database $db, Mapper $mapper) {
 });
 ```
 
+You can also define optional dependencies, by using optional arguments:
+
+```PHP
+$container->invoke(function (Optional $stuff = null) {
+    if ($stuff) {
+        // ...
+    }
+});
+```
+
+In this example, if class `Optional` has not been registered in the container, your
+function will still be invoked, but will be passed a `null` argument - be sure to
+check for presence of optional arguments.
+
+May be obvious, but note that, even if all the arguments are optional, and all the
+services/components are unavailable, the function will still be invoked.
+
 
 ### Component Factory Usage
 

@@ -5,7 +5,6 @@ namespace mindplay\boxy;
 use mindplay\filereflection\ReflectionFile;
 
 use Closure;
-use ReflectionException;
 use ReflectionParameter;
 use RuntimeException;
 use InvalidArgumentException;
@@ -27,7 +26,7 @@ class Container
      *
      * @see getArgumentType()
      */
-    const ARG_PATTERN = '/.*\[\s*(?:\<required\>|\<optional\>)\s*([^\s]+)/';
+    const ARG_PATTERN = '/.*\[\s*(?:\<required\>|\<optional\>)\s*([^\s\$]*)\s/';
 
     /**
      * @var Closure[] map where class-name => `function (...$service) : T`
@@ -127,17 +126,17 @@ class Container
         $args = array();
 
         foreach ($f->getParameters() as $param) {
-            // TODO support optional arguments (for optional dependencies)
+            $type = $this->getArgumentType($param);
 
-            try {
-                $type = $param->getClass()->getName();
-            } catch (ReflectionException $e) {
-                $type = $this->getArgumentType($param);
-
-                throw new RuntimeException("undefined service/component: {$type}");
+            if ($type === null) {
+                throw new RuntimeException("missing type-hint for argument: {$param->getName()}");
             }
 
-            $args[] = $this->resolve($type);
+            if ($param->isOptional() && ! $this->defined($type)) {
+                $args[] = null; // skip optional, undefined component
+            } else {
+                $args[] = $this->resolve($type);
+            }
         }
 
         return call_user_func_array($func, $args);
@@ -278,7 +277,17 @@ class Container
     }
 
     /**
-     * Inserts or replace an existing service object directly in the container
+     * @param string $type
+     *
+     * @return bool true, if a creator or service has been registered
+     */
+    protected function defined($type)
+    {
+        return isset($this->creators[$type]) || isset($this->services[$type]);
+    }
+
+    /**
+     * Insert or replace an existing service object directly in the container
      *
      * @param object $service
      * @param bool   $replace true to replace an existing service; false to throw on duplicate registration
@@ -298,7 +307,7 @@ class Container
                 throw new RuntimeException("conflicing service/component registration for: {$type}");
             }
         } else {
-            if (isset($this->creators[$type]) || isset($this->services[$type])) {
+            if ($this->defined($type)) {
                 throw new RuntimeException("duplicate service/component registration for: {$type}");
             }
         }
@@ -325,7 +334,7 @@ class Container
     {
         $type = $this->getReturnType($creator);
 
-        if (isset($this->services[$type]) || isset($this->creators[$type])) {
+        if ($this->defined($type)) {
             if ($override) {
                 if ($this->is_service[$type] !== $is_service) {
                     throw new RuntimeException("conflicing registration for service/component: {$type}");
@@ -353,13 +362,13 @@ class Container
      *
      * @param ReflectionParameter $param
      *
-     * @return string class name
+     * @return string|null class name (or null on failure)
      */
     protected function getArgumentType(ReflectionParameter $param)
     {
         preg_match(self::ARG_PATTERN, $param->__toString(), $matches);
 
-        return $matches[1];
+        return $matches[1] ?: null;
     }
 
     /**

@@ -341,6 +341,14 @@ test(
                 );
             }
         );
+
+        expect(
+            'RuntimeException',
+            'should throw on missing type-hint in consumer functions',
+            function () use ($c) {
+                $c->invoke(function ($foo) {});
+            }
+        );
     }
 );
 
@@ -557,6 +565,23 @@ test(
         });
 
         eq($count, 2, 'can configure component after initialization');
+    }
+);
+
+test(
+    'Can handle optional dependencies',
+    function () {
+        $c = new Container();
+
+        $got_null = false;
+
+        $c->invoke(function (Counter $counter = null) use (&$got_null) {
+            if ($counter === null) {
+                $got_null = true;
+            }
+        });
+
+        ok($got_null, 'provides null argument for optional, undefined dependency');
     }
 );
 
