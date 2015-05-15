@@ -29,9 +29,9 @@ class Container
     const ARG_PATTERN = '/.*\[\s*(?:\<required\>|\<optional\>)\s*([^\s]+)/';
 
     /**
-     * @var Closure[] map where class-name => `function (&T $service)`
+     * @var Closure[] map where class-name => `function (...$service) : T`
      */
-    protected $funcs = array();
+    protected $creators = array();
 
     /**
      * @var bool[] map where class-name => flag indicating whether a function is a component factory
@@ -39,52 +39,54 @@ class Container
     protected $is_service = array();
 
     /**
-     * @var object[] map where class-name => service object
+     * @var object[] map where class-name => single service object
      */
     protected $services = array();
+
+    // TODO support configuration after registration
 
     /**
      * Register a new singleton service factory function
      *
-     * @param Closure $func `function (...$service) : T` creates and initializes the T service
+     * @param Closure $creator `function (...$service) : T` creates and initializes the T service
      *
      * @throws RuntimeException on attempt to duplicate a factory function
      */
-    public function addService(Closure $func)
+    public function addService(Closure $creator)
     {
-        $this->define($func, true);
+        $this->define($creator, true);
     }
 
     /**
      * Register or replace a new or existing singleton service factory function
      *
-     * @param Closure $func `function (...$service) : T` creates and initializes the T service
+     * @param Closure $creator `function (...$service) : T` creates and initializes the T service
      */
-    public function setService(Closure $func)
+    public function setService(Closure $creator)
     {
-        $this->override($func, true);
+        $this->override($creator, true);
     }
 
     /**
      * Register a new component factory function
      *
-     * @param Closure $func `function (...$service) : T` creates and initializes the T component
+     * @param Closure $creator `function (...$service) : T` creates and initializes the T component
      *
      * @throws RuntimeException on attempt to duplicate a factory function
      */
-    public function addFactory(Closure $func)
+    public function addFactory(Closure $creator)
     {
-        $this->define($func, false);
+        $this->define($creator, false);
     }
 
     /**
      * Register or replace a new or existing component factory function
      *
-     * @param Closure $func `function (...$service) : T` creates and initializes the T component
+     * @param Closure $creator `function (...$service) : T` creates and initializes the T component
      */
-    public function setFactory(Closure $func)
+    public function setFactory(Closure $creator)
     {
-        $this->override($func, false);
+        $this->override($creator, false);
     }
 
     /**
@@ -102,7 +104,7 @@ class Container
 
         $type = get_class($object);
 
-        if (isset($this->funcs[$type]) || isset($this->services[$type])) {
+        if (isset($this->creators[$type]) || isset($this->services[$type])) {
             throw new RuntimeException("duplicate service/component registration for: {$type}");
         }
 
@@ -124,7 +126,7 @@ class Container
 
         $type = get_class($object);
 
-        if (isset($this->funcs[$type]) && ! $this->is_service[$type]) {
+        if (isset($this->creators[$type]) && !$this->is_service[$type]) {
             throw new RuntimeException("conflicing service/component registration for: {$type}");
         }
 
@@ -147,6 +149,8 @@ class Container
         $args = array();
 
         foreach ($f->getParameters() as $param) {
+            // TODO support optional arguments (for optional dependencies)
+
             try {
                 $type = $param->getClass()->getName();
             } catch (ReflectionException $e) {
@@ -184,11 +188,11 @@ class Container
             return $this->services[$type];
         }
 
-        if (!isset($this->funcs[$type])) {
+        if (!isset($this->creators[$type])) {
             throw new RuntimeException("undefined service/component: {$type}");
         }
 
-        $func = $this->funcs[$type];
+        $func = $this->creators[$type];
 
         $component = $this->provide($func);
 
@@ -210,22 +214,22 @@ class Container
     /**
      * Defines the service/component factory function for a given type
      *
-     * @param Closure $func       factory function
+     * @param Closure $creator    factory function
      * @param bool    $is_service true to register as a service factory; false to register as a component factory
      *
      * @return void
      *
      * @throws RuntimeException on duplicate registration
      */
-    protected function define(Closure $func, $is_service)
+    protected function define(Closure $creator, $is_service)
     {
-        $type = $this->getReturnType($func);
+        $type = $this->getReturnType($creator);
 
-        if (isset($this->services[$type]) || isset($this->funcs[$type])) {
+        if (isset($this->services[$type]) || isset($this->creators[$type])) {
             throw new RuntimeException("duplicate registration for service/component: {$type}");
         }
 
-        $this->funcs[$type] = $func;
+        $this->creators[$type] = $creator;
 
         $this->is_service[$type] = $is_service;
     }
@@ -233,24 +237,24 @@ class Container
     /**
      * Overrides the service/component factory function for a given type
      *
-     * @param Closure $func       factory function
+     * @param Closure $creator    factory function
      * @param bool    $is_service true to register as a service factory; false to register as a component factory
      *
      * @return void
      *
      * @throws RuntimeException on conflicting registration
      */
-    protected function override(Closure $func, $is_service)
+    protected function override(Closure $creator, $is_service)
     {
-        $type = $this->getReturnType($func);
+        $type = $this->getReturnType($creator);
 
-        if (isset($this->services[$type]) || isset($this->funcs[$type])) {
+        if (isset($this->services[$type]) || isset($this->creators[$type])) {
             if ($this->is_service[$type] !== $is_service) {
                 throw new RuntimeException("conflicing registration for service/component: {$type}");
             }
         }
 
-        $this->funcs[$type] = $func;
+        $this->creators[$type] = $creator;
 
         $this->is_service[$type] = $is_service;
     }
