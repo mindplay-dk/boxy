@@ -191,6 +191,19 @@ test(
                 );
             }
         );
+
+        $first_result = null;
+        $second_result = null;
+
+        $c->provide(function (UserFactory $users) use (&$first_result) {
+            $first_result = $users;
+        });
+
+        $c->provide(function (UserFactory $users) use (&$second_result) {
+            $second_result = $users;
+        });
+
+        ok($first_result !== $second_result, 'provides a unique component instance on subsequent calls');
     }
 );
 
