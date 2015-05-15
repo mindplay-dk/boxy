@@ -45,16 +45,20 @@ $c = new ServiceContainer();
 test(
     'Can register services',
     function () use ($c) {
-        $c->register(
+        $c->addFactory(
             /** @return Database */
             function () {
                 return new Database();
             }
         );
 
-        $c->register(
+        $original_factory_called = false;
+
+        $c->addFactory(
             /** @return Mapper */
-            function (Database $db) {
+            function (Database $db) use (&$original_factory_called) {
+                $original_factory_called = true;
+
                 return new Mapper($db);
             }
         );
@@ -65,7 +69,7 @@ test(
             'RuntimeException',
             'should throw on duplicate registration',
             function () use ($c) {
-                $c->register(
+                $c->addFactory(
                     /** @return Database */
                     function () {
                         return new Database();
@@ -73,6 +77,23 @@ test(
                 );
             }
         );
+
+        $replacement_factory_called = false;
+
+        $c->setFactory(
+            /** @return Mapper */
+            function (Database $db) use (&$replacement_factory_called) {
+                $replacement_factory_called = true;
+
+                return new Mapper($db);
+            }
+        );
+
+        $c->call(function (Mapper $mapper) {});
+
+        ok($original_factory_called === false, 'original factory function never called');
+
+        ok($replacement_factory_called === true, 'replacement factory function was called');
     }
 );
 
@@ -161,7 +182,7 @@ test(
 
         $db_c = new ServiceContainer();
 
-        $db_c->register(
+        $db_c->addFactory(
             /** @return Mapper (this type-hint is wrong!) */
             function () {
                 return new Database();
@@ -182,7 +203,7 @@ test(
             'RuntimeException',
             'should throw on missing @return annotation in factory functions',
             function () use ($db_c) {
-                $db_c->register(
+                $db_c->addFactory(
                     function () {
                         return new Database();
                     }
@@ -197,7 +218,7 @@ test(
     function () {
         $c = new ServiceContainer();
 
-        $c->register(
+        $c->addFactory(
             /**
              * @return Bar
              */

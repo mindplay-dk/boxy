@@ -42,14 +42,28 @@ class ServiceContainer
      * Register a new service factory function
      *
      * @param Closure $func `function (...$service) : T` creates and initializes the T service
+     *
+     * @throws RuntimeException on attempt to duplicate a factory function
      */
-    public function register(Closure $func)
+    public function addFactory(Closure $func)
     {
         $type = $this->getReturnType($func);
 
         if (isset($this->funcs[$type]) || isset($this->services[$type])) {
             throw new RuntimeException("duplicate service registration for: {$type}");
         }
+
+        $this->funcs[$type] = $func;
+    }
+
+    /**
+     * Register or replace a new or existing service factory function
+     *
+     * @param Closure $func `function (...$service) : T` creates and initializes the T service
+     */
+    public function setFactory(Closure $func)
+    {
+        $type = $this->getReturnType($func);
 
         $this->funcs[$type] = $func;
     }
