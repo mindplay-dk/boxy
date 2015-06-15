@@ -97,6 +97,56 @@ whether a given type should be registered as a service (same every time) or as
 a component (new instance every time.)
 
 
+### Named Services and Components
+
+You can optionally name your service/component definitions - this is useful in cases
+where you have two distinct instances of the same class, or wish to provide two
+distinct implementations of an abstract class or interface. Every public API method
+has a named counterpart - for example, here we register two different cache
+components, both to a common interface:
+
+```PHP
+$container->registerNamed('file_cache', CacheInterface::class, function () {
+    return new FileCache(...);
+});
+
+$container->registerNamed('memory_cache', CacheInterface::class, function () {
+    return new MemoryCache(...);
+});
+```
+
+Consumers then ask for these services by using argument names matching the names
+they were registered for - in this case:
+
+```PHP
+$container->invoke(function (CacheInterface $file_cache) {
+    echo get_class($file_cache); // => FileCache
+});
+
+$container->invoke(function (CacheInterface $disk_cache) {
+    echo get_class($disk_cache); // => DiskCache
+});
+```
+
+The `invoke()` method always tries to provide services/components with a matching
+name first, but will fall back to a service/component definition matching only
+the type - so, in a unit-testing scenario (where you don't have the calls to
+`registerNamed` above) you could mock both of the dependencies in the example
+above, by registering a single mock cache:
+
+```PHP
+$container->registerService(CacheInterface::class, function () {
+    return new MockCache();
+});
+```
+
+The `invoke()` method will now provide `MockCache` instances for any `CacheInterface`
+argument, regardless of whether the name matches.
+
+The `registerComponent()` method also has a `registerNamedComponent()` counterpart,
+and so on.
+
+
 ### Configuring Services and Components 
 
 You can register additional configuration functions for a service or component:
