@@ -208,6 +208,14 @@ class Container
     }
 
     /**
+     * @param Consumer $consumer consumer for whom to provide dependencies
+     */
+    public function provide(Consumer $consumer)
+    {
+        $this->invoke($consumer->getInjector());
+    }
+
+    /**
      * Register service and component definitions packaged by a given Provider
      *
      * @param Provider $provider

@@ -1,5 +1,6 @@
 <?php
 
+use mindplay\boxy\Consumer;
 use mindplay\boxy\Container;
 use mindplay\boxy\Provider;
 
@@ -39,6 +40,24 @@ class UserFactory
     public function __construct(Mapper $mapper)
     {
         $this->mapper = $mapper;
+    }
+}
+
+class QueryBuilder implements Consumer
+{
+    /**
+     * @var Database
+     */
+    public $db;
+
+    /**
+     * @return Closure consumer function
+     */
+    public function getInjector()
+    {
+        return function (Database $db) {
+            $this->db = $db;
+        };
     }
 }
 
@@ -702,6 +721,24 @@ test(
 
         eq($got_one->value, 1, 'got first configured named dependency');
         eq($got_two->value, 2, 'got second configured named dependency');
+    }
+);
+
+test(
+    'can provide for Consumers',
+    function () {
+        $c = new Container();
+
+        $c->registerService(
+            Database::class,
+            function () {
+                return new Database();
+            }
+        );
+
+        $c->provide($qb = new QueryBuilder);
+
+        ok($qb->db instanceof Database, 'consumer function was called');
     }
 );
 

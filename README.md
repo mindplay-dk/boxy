@@ -162,3 +162,41 @@ $container->register(new ServiceProvider);
 Note that providers get registered immediately - which means you should
 still use `registerService()` rather than `insertService()` if you want
 lazy initialization. 
+
+
+### Consumer Interface
+
+You can make components explicitly interoperable with the service
+container by implementing the `Consumer` interface, which is simply a
+method that returns a function to `invoke()` - this provides a means of
+opening a class to dependency injection (also during tests, independently
+of a `Container` instance) without adding setters or making things public.
+
+For example:
+
+```PHP
+class PetStore implements Consumer
+{
+    protected $cat;
+    protected $dog;
+    
+    public function getInjector()
+    {
+        return function (Cat $cat, Dog $dog) {
+            $this->cat = $cat;
+            $this->dog = $dog;
+        };
+    }
+}
+```
+
+Now, assuming you have a `Container` already configured to provide
+instances of `Cat` and `Dog`, you can provide those dependencies by
+passing a `PetStore` to the `provide()` method:  
+
+```PHP
+$container->provide($store = new PetStore);
+```
+
+After this call, the function returned by the `getInjector()` method
+has been called, and the `Cat` and `Dog` dependencies have been provided.
