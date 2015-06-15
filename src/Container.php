@@ -22,87 +22,105 @@ class Container
     const ARG_PATTERN = '/.*\[\s*(?:\<required\>|\<optional\>)\s*([^\s\$]*)\s/';
 
     /**
-     * @var Closure[] map where class-name => `function (...$service) : T`
+     * @var Closure[] map where component index => `function (...$service) : T`
      */
     protected $creators = array();
 
     /**
-     * @var bool[] map where class-name => flag indicating whether a function is a component factory
+     * @var bool[] map where component index => flag indicating whether a function is a component factory
      */
     protected $is_service = array();
 
     /**
-     * @var (Closure[])[] map where class-name => `function ($component)`
+     * @var (Closure[])[] map where component index => `function ($component)`
      */
     protected $initializers = array();
 
     /**
-     * @var object[] map where class-name => singleton service object
+     * @var object[] map where component index => singleton service object
      */
     protected $services = array();
 
     /**
      * Register a new singleton service factory function
      *
-     * @param string  $type    class or interface name
-     * @param Closure $creator `function (...$service) : T` creates and initializes the T service
+     * @param string      $type    class or interface name
+     * @param Closure     $creator `function (...$service) : T` creates and initializes the T service
+     * @param string|null $name    optional service/component name
+     *
+     * @return void
      */
-    public function registerService($type, Closure $creator)
+    public function registerService($type, Closure $creator, $name = null)
     {
-        $this->define($type, $creator, true);
+        $this->define($name, $type, $creator, true);
     }
 
     /**
      * Override an existing singleton service factory function
      *
-     * @param string  $type    class or interface name
-     * @param Closure $creator `function (...$service) : T` creates and initializes the T service
+     * @param string      $type    class or interface name
+     * @param Closure     $creator `function (...$service) : T` creates and initializes the T service
+     * @param string|null $name    optional service/component name
+     *
+     * @return void
      */
-    public function overrideService($type, Closure $creator)
+    public function overrideService($type, Closure $creator, $name = null)
     {
-        $this->override($type, $creator, true);
+        $this->override($name, $type, $creator, true);
     }
 
     /**
      * Register a new component factory function
      *
-     * @param string  $type    class or interface name
-     * @param Closure $creator `function (...$service) : T` creates and initializes the T component
+     * @param string      $type    class or interface name
+     * @param Closure     $creator `function (...$service) : T` creates and initializes the T component
+     * @param string|null $name    optional service/component name
+     *
+     * @return void
      */
-    public function registerComponent($type, Closure $creator)
+    public function registerComponent($type, Closure $creator, $name = null)
     {
-        $this->define($type, $creator, false);
+        $this->define($name, $type, $creator, false);
     }
 
     /**
      * Override an existing component factory function
      *
-     * @param string  $type    class or interface name
-     * @param Closure $creator `function (...$service) : T` creates and initializes the T component
+     * @param string      $type    class or interface name
+     * @param Closure     $creator `function (...$service) : T` creates and initializes the T component
+     * @param string|null $name    optional service/component name
+     *
+     * @return void
      */
-    public function overrideComponent($type, Closure $creator)
+    public function overrideComponent($type, Closure $creator, $name = null)
     {
-        $this->override($type, $creator, false);
+        $this->override($name, $type, $creator, false);
     }
 
     /**
      * Inserts an existing service object directly into the container
      *
-     * @param object $service
+     * @param object      $service service instance
+     * @param string|null $name    optional service name
+     *
+     * @return void
      */
-    public function insertService($service)
+    public function insertService($service, $name = null)
     {
-        $this->setService($service, false);
+        $this->setService($service, $name, false);
     }
 
     /**
      * Replace an existing service object directly in the container
      *
-     * @param object $service
+     * @param object      $service service instance
+     * @param string|null $name    optional service name
+     *
+     * @return void
      */
-    public function replaceService($service)
+    public function replaceService($service, $name = null)
     {
-        $this->setService($service, true);
+        $this->setService($service, $name, true);
     }
 
     /**
@@ -119,16 +137,17 @@ class Container
         $args = array();
 
         foreach ($f->getParameters() as $param) {
+            $name = $param->getName();
             $type = $this->getArgumentType($param);
 
             if ($type === null) {
-                throw new RuntimeException("missing type-hint for argument: {$param->getName()}");
+                throw new RuntimeException("missing type-hint for argument: {$name}");
             }
 
-            if ($param->isOptional() && !$this->defined($type)) {
-                $args[] = null; // skip optional, undefined component
+            if ($param->isOptional() && !$this->canResolve($name, $type)) {
+                $args[] = null;
             } else {
-                $args[] = $this->resolve($type);
+                $args[] = $this->resolve($name, $type);
             }
         }
 
@@ -139,6 +158,8 @@ class Container
      * Register service and component definitions packaged by a given Provider
      *
      * @param Provider $provider
+     *
+     * @return void
      */
     public function register(Provider $provider)
     {
@@ -148,7 +169,7 @@ class Container
     /**
      * Register a configuration function which will be run when a service/component is created.
      *
-     * @param callable $initializer `function ($component)` initializes/configures a service/component
+     * @param Closure $initializer `function ($component)` initializes/configures a service/component
      *
      * @return void
      */
@@ -162,38 +183,51 @@ class Container
 
         $params = $reflection->getParameters();
 
-        $type = $this->getArgumentType($params[0]);
+        $param = $params[0];
 
-        $this->initializers[$type][] = $initializer;
+        $name = $param->getName();
+        $type = $this->getArgumentType($param);
+        $index = $this->index($name, $type);
 
-        if (isset($this->services[$type])) {
+        if (!isset($this->creators[$index])) {
+            // configure default service/component
+            $index = $type;
+            $name = null;
+        }
+
+        $this->initializers[$index][] = $initializer;
+
+        if (isset($this->services[$index])) {
             // service already created - initialize immediately:
 
-            $this->initialize($this->services[$type]);
+            $this->initialize($this->services[$index], $name);
         }
     }
 
     /**
      * Dispatch any registered configuration functions for a given service/component instance.
      *
-     * @param object $component
+     * @param object      $component service/component to initialize
+     * @param string|null $name      optional component name
      *
      * @return void
      */
-    protected function initialize($component)
+    protected function initialize($component, $name)
     {
         $type = get_class($component);
 
         do {
-            if (isset($this->initializers[$type])) {
-                foreach ($this->initializers[$type] as $initialize) {
+            $index = $this->index($name, $type);
+
+            if (isset($this->initializers[$index])) {
+                foreach ($this->initializers[$index] as $initialize) {
                     call_user_func($initialize, $component);
                 }
 
-                if ($this->is_service[$type]) {
+                if ($this->is_service[$index]) {
                     // service initialization only happens once.
 
-                    unset($this->initializers[$type]);
+                    unset($this->initializers[$index]);
                 }
             }
         } while ($type = get_parent_class($type));
@@ -202,86 +236,125 @@ class Container
     /**
      * Resolve a service or component by class-name
      *
-     * @param string $type service/component class-name
+     * @param string|null $name optional component name
+     * @param string      $type service/component class-name
      *
      * @return object service object
      */
-    protected function resolve($type)
+    protected function resolve($name, $type)
     {
         /**
          * @var object $component
          */
 
+        $index = $this->index($name, $type);
+
+        if (isset($this->services[$index])) {
+            return $this->services[$index];
+        }
+
         if (isset($this->services[$type])) {
             return $this->services[$type];
         }
 
-        if (!isset($this->creators[$type])) {
-            throw new RuntimeException("undefined service/component: {$type}");
+        if (isset($this->creators[$index])) {
+            // nothing to do here - already got the best matching index.
+        } elseif (isset($this->creators[$type])) {
+            $index = $type;
+            $name = null;
+        } else {
+            throw new RuntimeException("undefined service/component: {$index}");
         }
 
-        $func = $this->creators[$type];
-
-        $component = $this->invoke($func);
+        $component = $this->invoke($this->creators[$index]);
 
         if (!$component instanceof $type) {
             $wrong_type = is_object($component)
                 ? get_class($component)
                 : gettype($component);
 
-            throw new RuntimeException("factory function for {$type} returned wrong type: {$wrong_type}");
+            throw new RuntimeException("factory function for {$index} returned wrong type: {$wrong_type}");
         }
 
-        $this->initialize($component);
+        $this->initialize($component, $name);
 
-        if ($this->is_service[$type]) {
-            $this->services[$type] = $component; // register component as a service
+        if ($this->is_service[$index]) {
+            $this->services[$index] = $component; // register component as a service
         }
 
         return $component;
     }
 
     /**
+     * Resolve a service or component by class-name
+     *
+     * @param string|null $name optional component name
+     * @param string      $type service/component class-name
+     *
+     * @return bool true, if the given name and type can be resolved
+     */
+    protected function canResolve($name, $type)
+    {
+        $index = $this->index($name, $type);
+
+        return isset($this->services[$index])
+            || isset($this->creators[$index])
+            || isset($this->services[$type])
+            || isset($this->creators[$type]);
+    }
+
+    /**
      * Defines the service/component factory function for a given type
      *
-     * @param string  $type       class or interface name
-     * @param Closure $creator    factory function
-     * @param bool    $is_service true to register as a service factory; false to register as a component factory
+     * @param string|null $name       optional component name
+     * @param string      $type       class or interface name
+     * @param Closure     $creator    factory function
+     * @param bool        $is_service true to register as a service factory; false to register as a component factory
+     *
+     * @return void
      */
-    protected function define($type, Closure $creator, $is_service)
+    protected function define($name, $type, Closure $creator, $is_service)
     {
-        $this->setCreator($type, $creator, $is_service, false);
+        $this->setCreator($name, $type, $creator, $is_service, false);
     }
 
     /**
      * Overrides the service/component factory function for a given type
      *
-     * @param string  $type       class or interface name
-     * @param Closure $creator    factory function
-     * @param bool    $is_service true to register as a service factory; false to register as a component factory
+     * @param string|null $name       optional component name
+     * @param string      $type       class or interface name
+     * @param Closure     $creator    factory function
+     * @param bool        $is_service true to register as a service factory; false to register as a component factory
+     *
+     * @return void
      */
-    protected function override($type, Closure $creator, $is_service)
+    protected function override($name, $type, Closure $creator, $is_service)
     {
-        $this->setCreator($type, $creator, $is_service, true);
+        $this->setCreator($name, $type, $creator, $is_service, true);
     }
 
     /**
-     * @param string $type
+     * Check if a service/component with a given name and type has been defined.
+     *
+     * @param string $index component index
      *
      * @return bool true, if a creator or service has been registered
      */
-    protected function defined($type)
+    protected function defined($index)
     {
-        return isset($this->creators[$type]) || isset($this->services[$type]);
+        return isset($this->creators[$index]) || isset($this->services[$index]);
     }
 
     /**
      * Insert or replace an existing service object directly in the container
      *
-     * @param object $service
-     * @param bool   $replace true to replace an existing service; false to throw on duplicate registration
+     * @param object      $service service instance
+     * @param string|null $name    optional service/component name
+     * @param bool        $replace true to replace an existing service; false to throw on duplicate registration
+     *
+     * @return void
      */
-    protected function setService($service, $replace)
+    protected function setService($service, $name, $replace)
     {
         if (!is_object($service)) {
             $type = gettype($service);
@@ -289,52 +362,57 @@ class Container
             throw new InvalidArgumentException("unexpected argument type: {$type}");
         }
 
-        $type = get_class($service);
+        $index = $this->index($name, get_class($service));
 
         if ($replace) {
-            if (isset($this->creators[$type]) && !$this->is_service[$type]) {
-                throw new RuntimeException("conflicing service/component registration for: {$type}");
+            if (isset($this->creators[$index]) && !$this->is_service[$index]) {
+                throw new RuntimeException("conflicing service/component registration for: {$index}");
             }
         } else {
-            if ($this->defined($type)) {
-                throw new RuntimeException("duplicate service/component registration for: {$type}");
+            if ($this->defined($index)) {
+                throw new RuntimeException("duplicate service/component registration for: {$index}");
             }
         }
 
-        $this->initialize($service);
+        $this->initialize($service, $name);
 
-        $this->services[$type] = $service;
+        $this->services[$index] = $service;
 
-        $this->is_service[$type] = true;
+        $this->is_service[$index] = true;
     }
 
     /**
      * Set the creator function for a service/component of a given type
      *
-     * @param string  $type       class or interface name
-     * @param Closure $creator    factory function
-     * @param bool    $is_service true to register as a service factory; false to register as a component factory
-     * @param bool    $override   true to override an existing service/component
+     * @param string|null $name       optional component name
+     * @param string      $type       component index
+     * @param Closure     $creator    factory function
+     * @param bool        $is_service true to register as a service factory; false to register as a component factory
+     * @param bool        $override   true to override an existing service/component
+     *
+     * @return void
      */
-    protected function setCreator($type, Closure $creator, $is_service, $override)
+    protected function setCreator($name, $type, Closure $creator, $is_service, $override)
     {
-        if ($this->defined($type)) {
+        $index = $this->index($name, $type);
+
+        if ($this->defined($index)) {
             if ($override) {
-                if ($this->is_service[$type] !== $is_service) {
-                    throw new RuntimeException("conflicing registration for service/component: {$type}");
+                if ($this->is_service[$index] !== $is_service) {
+                    throw new RuntimeException("conflicing registration for service/component: {$index}");
                 }
 
-                if ($is_service && isset($this->services[$type])) {
-                    throw new RuntimeException("unable to redefine a service - already initialized: {$type}");
+                if ($is_service && isset($this->services[$index])) {
+                    throw new RuntimeException("unable to redefine a service - already initialized: {$index}");
                 }
             } else {
-                throw new RuntimeException("duplicate registration for service/component: {$type}");
+                throw new RuntimeException("duplicate registration for service/component: {$index}");
             }
         }
 
-        $this->creators[$type] = $creator;
+        $this->creators[$index] = $creator;
 
-        $this->is_service[$type] = $is_service;
+        $this->is_service[$index] = $is_service;
     }
 
     /**
@@ -348,10 +426,23 @@ class Container
      *
      * @return string|null class name (or null on failure)
      */
-    protected function getArgumentType(ReflectionParameter $param)
+    private function getArgumentType(ReflectionParameter $param)
     {
         preg_match(self::ARG_PATTERN, $param->__toString(), $matches);
 
         return $matches[1] ?: null;
+    }
+
+    /**
+     * @param string|null $name optional component name
+     * @param string      $type class or interface name
+     *
+     * @return string
+     */
+    private function index($name, $type)
+    {
+        return $name === null
+            ? $type
+            : "{$type}#{$name}";
     }
 }

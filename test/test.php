@@ -495,7 +495,8 @@ test(
         $c->configure(
             function (Counter $counter) {
                 $counter->count += 1;
-            });
+            }
+        );
 
         $count = 0;
 
@@ -580,6 +581,127 @@ test(
         });
 
         ok($got_null, 'provides null argument for optional, undefined dependency');
+    }
+);
+
+test(
+    'Can create named dependencies',
+    function () {
+        $c = new Container();
+
+        $c->registerService(
+            Bar::class,
+            function () {
+                return new Bar(1);
+            },
+            "one"
+        );
+
+        $c->registerService(
+            Bar::class,
+            function () {
+                return new Bar(2);
+            },
+            "two"
+        );
+
+        /**
+         * @var Bar $got_one
+         * @var Bar $got_two
+         */
+
+        $got_one = null;
+        $got_two = null;
+
+        $c->invoke(function (Bar $one, Bar $two) use (&$got_one, &$got_two) {
+            $got_one = $one;
+            $got_two = $two;
+        });
+
+        eq($got_one->value, 1, 'got first named dependency');
+        eq($got_two->value, 2, 'got second named dependency');
+
+        expect(
+            'RuntimeException',
+            'because no default service has been registered',
+            function () use ($c) {
+                $c->invoke(function (Bar $default) {
+                    // this won't execute
+                });
+            }
+        );
+
+        $got_optional = false;
+
+        $c->invoke(function (Bar $optional = null) use (&$got_optional) {
+            $got_optional = $optional;
+        });
+
+        eq($got_optional, null, 'container provides NULL value for optional service');
+
+        $c->registerService(
+            Bar::class,
+            function () {
+                return new Bar('default');
+            }
+        );
+
+        /**
+         * @var Bar $got_default
+         */
+
+        $c->invoke(function (Bar $default) use (&$got_default) {
+            $got_default = $default;
+        });
+
+        eq($got_default->value, 'default', 'got default dependency');
+    }
+);
+
+test(
+    'Can configure named dependencies',
+    function () {
+        $c = new Container();
+
+        $c->registerService(
+            Bar::class,
+            function () {
+                return new Bar();
+            },
+            "one"
+        );
+
+        $c->registerService(
+            Bar::class,
+            function () {
+                return new Bar();
+            },
+            "two"
+        );
+
+        $c->configure(function (Bar $one) {
+            $one->value = 1;
+        });
+
+        $c->configure(function (Bar $two) {
+            $two->value = 2;
+        });
+
+        /**
+         * @var Bar $got_one
+         * @var Bar $got_two
+         */
+
+        $got_one = null;
+        $got_two = null;
+
+        $c->invoke(function (Bar $one, Bar $two) use (&$got_one, &$got_two) {
+            $got_one = $one;
+            $got_two = $two;
+        });
+
+        eq($got_one->value, 1, 'got first configured named dependency');
+        eq($got_two->value, 2, 'got second configured named dependency');
     }
 );
 

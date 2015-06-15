@@ -85,7 +85,8 @@ function expect($exception_type, $why, $function)
 function format($value, $verbose = false)
 {
     if ($value instanceof Exception) {
-        return get_class($value) . ": \"" . $value->getMessage() . "\"";
+        return get_class($value) . ": \"" . $value->getMessage() . "\""
+            . ($verbose ? "\n\n" . $value->getTraceAsString() : '');
     }
 
     if (!$verbose && is_array($value)) {
