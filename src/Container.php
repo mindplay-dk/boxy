@@ -2,8 +2,6 @@
 
 namespace mindplay\boxy;
 
-use mindplay\filereflection\ReflectionFile;
-
 use Closure;
 use ReflectionParameter;
 use RuntimeException;
@@ -16,11 +14,6 @@ use ReflectionFunction;
  */
 class Container
 {
-    /**
-     * @var string regular expression to match the `@return` annotation in doc-blocks
-     */
-    const RETURN_PATTERN = '/@return\s+(?<name>[\w\\\\]+)\b/';
-
     /**
      * @var string pattern for parsing an argument type from a ReflectionParameter string
      *
@@ -51,45 +44,45 @@ class Container
     /**
      * Register a new singleton service factory function
      *
+     * @param string  $type    class or interface name
      * @param Closure $creator `function (...$service) : T` creates and initializes the T service
-     *
-     * @throws RuntimeException on attempt to duplicate a factory function
      */
-    public function registerService(Closure $creator)
+    public function registerService($type, Closure $creator)
     {
-        $this->define($creator, true);
+        $this->define($type, $creator, true);
     }
 
     /**
      * Override an existing singleton service factory function
      *
+     * @param string  $type    class or interface name
      * @param Closure $creator `function (...$service) : T` creates and initializes the T service
      */
-    public function overrideService(Closure $creator)
+    public function overrideService($type, Closure $creator)
     {
-        $this->override($creator, true);
+        $this->override($type, $creator, true);
     }
 
     /**
      * Register a new component factory function
      *
+     * @param string  $type    class or interface name
      * @param Closure $creator `function (...$service) : T` creates and initializes the T component
-     *
-     * @throws RuntimeException on attempt to duplicate a factory function
      */
-    public function registerComponent(Closure $creator)
+    public function registerComponent($type, Closure $creator)
     {
-        $this->define($creator, false);
+        $this->define($type, $creator, false);
     }
 
     /**
      * Override an existing component factory function
      *
+     * @param string  $type    class or interface name
      * @param Closure $creator `function (...$service) : T` creates and initializes the T component
      */
-    public function overrideComponent(Closure $creator)
+    public function overrideComponent($type, Closure $creator)
     {
-        $this->override($creator, false);
+        $this->override($type, $creator, false);
     }
 
     /**
@@ -132,7 +125,7 @@ class Container
                 throw new RuntimeException("missing type-hint for argument: {$param->getName()}");
             }
 
-            if ($param->isOptional() && ! $this->defined($type)) {
+            if ($param->isOptional() && !$this->defined($type)) {
                 $args[] = null; // skip optional, undefined component
             } else {
                 $args[] = $this->resolve($type);
@@ -156,6 +149,8 @@ class Container
      * Register a configuration function which will be run when a service/component is created.
      *
      * @param callable $initializer `function ($component)` initializes/configures a service/component
+     *
+     * @return void
      */
     public function configure(Closure $initializer)
     {
@@ -249,31 +244,25 @@ class Container
     /**
      * Defines the service/component factory function for a given type
      *
+     * @param string  $type       class or interface name
      * @param Closure $creator    factory function
      * @param bool    $is_service true to register as a service factory; false to register as a component factory
-     *
-     * @return void
-     *
-     * @throws RuntimeException on duplicate registration
      */
-    protected function define(Closure $creator, $is_service)
+    protected function define($type, Closure $creator, $is_service)
     {
-        $this->setCreator($creator, $is_service, false);
+        $this->setCreator($type, $creator, $is_service, false);
     }
 
     /**
      * Overrides the service/component factory function for a given type
      *
+     * @param string  $type       class or interface name
      * @param Closure $creator    factory function
      * @param bool    $is_service true to register as a service factory; false to register as a component factory
-     *
-     * @return void
-     *
-     * @throws RuntimeException on conflicting registration
      */
-    protected function override(Closure $creator, $is_service)
+    protected function override($type, Closure $creator, $is_service)
     {
-        $this->setCreator($creator, $is_service, true);
+        $this->setCreator($type, $creator, $is_service, true);
     }
 
     /**
@@ -322,18 +311,13 @@ class Container
     /**
      * Set the creator function for a service/component of a given type
      *
+     * @param string  $type       class or interface name
      * @param Closure $creator    factory function
      * @param bool    $is_service true to register as a service factory; false to register as a component factory
      * @param bool    $override   true to override an existing service/component
-     *
-     * @return void
-     *
-     * @throws RuntimeException on duplicate registration
      */
-    protected function setCreator(Closure $creator, $is_service, $override)
+    protected function setCreator($type, Closure $creator, $is_service, $override)
     {
-        $type = $this->getReturnType($creator);
-
         if ($this->defined($type)) {
             if ($override) {
                 if ($this->is_service[$type] !== $is_service) {
@@ -369,31 +353,5 @@ class Container
         preg_match(self::ARG_PATTERN, $param->__toString(), $matches);
 
         return $matches[1] ?: null;
-    }
-
-    /**
-     * Reflect on the return-type of a given Closure, by parsing it's doc-block.
-     *
-     * @param Closure $func
-     *
-     * @return string return type (resolved as fully-qualified class-name)
-     */
-    protected function getReturnType(Closure $func)
-    {
-        $reflection = new ReflectionFunction($func);
-
-        $comment = $reflection->getDocComment();
-
-        if (preg_match_all(self::RETURN_PATTERN, $comment, $matches) !== 1) {
-            throw new RuntimeException("missing @return annotation in doc-block for factory function");
-        }
-
-        $name = $matches['name'][0];
-
-        $file = new ReflectionFile($reflection->getFileName());
-
-        $type = substr($file->resolveName($name), 1);
-
-        return $type;
     }
 }

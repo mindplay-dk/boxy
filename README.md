@@ -1,7 +1,8 @@
 Boxy
 ====
 
-Open, simple, type-hinted (and type-checked) dependency injection container.
+Open, simple, type-hinted (and type-checked) dependency injection container
+for PHP 5.5 and up.
 
 Definitely inspired by [Pimple](http://pimple.sensiolabs.org/) but optimized for full
 IDE support, e.g. design-time and run-time type-checking, both on the provider and
@@ -34,9 +35,9 @@ Or you can register factory functions to create services as late as possible:
 
 ```PHP
 $container->registerService(
-    /** @return Mapper (this annotation gets parsed and resolved) */
+    Mapper::class,
     function (Database $db) {
-        // type-hints on arguments are resolved and Database dependency provided
+        // type-hinted argument gets resolved and Database instance gets provided
 
         return new Mapper($db); // return type will be checked
     }
@@ -47,8 +48,8 @@ Consumers can then ask for services by providing a function to be invoked:
 
 ```PHP
 $container->invoke(function (Database $db, Mapper $mapper) {
-    // type-hints on arguments are resolved - the Mapper and Database instance
-    // are constructed as needed and provided for the consumer.
+    // type-hinted arguments are resolved - the Mapper and Database instance
+    // are constructed as needed and provided for the consumer function.
 });
 ```
 
@@ -62,7 +63,7 @@ $container->invoke(function (Optional $stuff = null) {
 });
 ```
 
-In this example, if class `Optional` has not been registered in the container, your
+In this example, if class `Optional` has not been registered in the container, the
 function will still be invoked, but will be passed a `null` argument - be sure to
 check for presence of optional arguments.
 
@@ -76,7 +77,7 @@ You can register factory functions to create components on demand:
 
 ```PHP
 $container->registerComponent(
-    /** @return ArticleFinder */
+    ArticleFinder::class,
     function (Database $db) {
         return new ArticleFinder($db);
     }
@@ -90,6 +91,10 @@ $container->invoke(function (ArticleFinder $finder) {
     // a new ArticleFinder component is created every time you call invoke
 });
 ```
+
+In other words, the syntax is the same; whoever populates the container decides
+whether a given type should be registered as a service (same every time) or as
+a component (new instance every time.)
 
 
 ### Configuring Services and Components 
@@ -113,7 +118,7 @@ You can override a previously registered service creation function:
 
 ```PHP
 $container->overrideService(
-    /** @return Database */
+    Database::class,
     function () {
         return new Database();
     }
@@ -121,8 +126,8 @@ $container->overrideService(
 ```
 
 You can override component factory functions as well, at any time; note that
-overriding a service creation function is only possible before the service
-is initialized - an attempted override after initialization will generate
+overriding a service creation function is only possible until the service
+is initialized - an attempted override after initialization will cause
 an exception.
 
 
@@ -139,7 +144,7 @@ class ServiceProvider implements Provider
     public function register(Container $container)
     {
         $container->registerService(
-            /** @return Database */
+            Database::class,
             function () {
                 return new Database();
             }
@@ -154,4 +159,6 @@ Then register your custom provider with your container instance:
 $container->register(new ServiceProvider);
 ```
 
-And there you have it: a letter opener. *Weenie Man Awaaay!*
+Note that providers get registered immediately - which means you should
+still use `registerService()` rather than `insertService()` if you want
+lazy initialization. 
