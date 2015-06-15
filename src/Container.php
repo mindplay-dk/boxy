@@ -44,13 +44,26 @@ class Container
     /**
      * Register a new singleton service factory function
      *
-     * @param string      $type    class or interface name
-     * @param Closure     $creator `function (...$service) : T` creates and initializes the T service
-     * @param string|null $name    optional service/component name
+     * @param string  $type    class or interface name
+     * @param Closure $creator `function (...$service) : T` creates and initializes the T service
      *
      * @return void
      */
-    public function registerService($type, Closure $creator, $name = null)
+    public function registerService($type, Closure $creator)
+    {
+        $this->define(null, $type, $creator, true);
+    }
+
+    /**
+     * Register a new, named singleton service factory function
+     *
+     * @param string  $name    service/component name
+     * @param string  $type    class or interface name
+     * @param Closure $creator `function (...$service) : T` creates and initializes the T service
+     *
+     * @return void
+     */
+    public function registerNamedService($name, $type, Closure $creator)
     {
         $this->define($name, $type, $creator, true);
     }
@@ -58,13 +71,26 @@ class Container
     /**
      * Override an existing singleton service factory function
      *
-     * @param string      $type    class or interface name
-     * @param Closure     $creator `function (...$service) : T` creates and initializes the T service
-     * @param string|null $name    optional service/component name
+     * @param string  $type    class or interface name
+     * @param Closure $creator `function (...$service) : T` creates and initializes the T service
      *
      * @return void
      */
-    public function overrideService($type, Closure $creator, $name = null)
+    public function overrideService($type, Closure $creator)
+    {
+        $this->override(null, $type, $creator, true);
+    }
+
+    /**
+     * Override an existing named singleton service factory function
+     *
+     * @param string  $name    service/component name
+     * @param string  $type    class or interface name
+     * @param Closure $creator `function (...$service) : T` creates and initializes the T service
+     *
+     * @return void
+     */
+    public function overrideNamedService($name, $type, Closure $creator)
     {
         $this->override($name, $type, $creator, true);
     }
@@ -78,7 +104,21 @@ class Container
      *
      * @return void
      */
-    public function registerComponent($type, Closure $creator, $name = null)
+    public function registerComponent($type, Closure $creator)
+    {
+        $this->define(null, $type, $creator, false);
+    }
+
+    /**
+     * Register a new named component factory function
+     *
+     * @param string  $name    service/component name
+     * @param string  $type    class or interface name
+     * @param Closure $creator `function (...$service) : T` creates and initializes the T component
+     *
+     * @return void
+     */
+    public function registerNamedComponent($name, $type, Closure $creator)
     {
         $this->define($name, $type, $creator, false);
     }
@@ -88,11 +128,24 @@ class Container
      *
      * @param string      $type    class or interface name
      * @param Closure     $creator `function (...$service) : T` creates and initializes the T component
-     * @param string|null $name    optional service/component name
      *
      * @return void
      */
-    public function overrideComponent($type, Closure $creator, $name = null)
+    public function overrideComponent($type, Closure $creator)
+    {
+        $this->override(null, $type, $creator, false);
+    }
+
+    /**
+     * Override an existing named component factory function
+     *
+     * @param string  $name    service/component name
+     * @param string  $type    class or interface name
+     * @param Closure $creator `function (...$service) : T` creates and initializes the T component
+     *
+     * @return void
+     */
+    public function overrideNamedComponent($name, $type, Closure $creator)
     {
         $this->override($name, $type, $creator, false);
     }
@@ -175,6 +228,31 @@ class Container
      */
     public function configure(Closure $initializer)
     {
+        $this->addConfiguration($initializer, false);
+    }
+
+    /**
+     * Register a configuration function which will be run when a named service/component is created.
+     *
+     * @param Closure $initializer `function ($component)` initializes/configures a named service/component
+     *
+     * @return void
+     */
+    public function configureNamed(Closure $initializer)
+    {
+        $this->addConfiguration($initializer, true);
+    }
+
+    /**
+     * Register a configuration function which will be run when a service/component is created.
+     *
+     * @param Closure $initializer `function ($component)` initializes/configures a service/component
+     * @param bool $named
+     *
+     * @return void
+     */
+    protected function addConfiguration(Closure $initializer, $named)
+    {
         $reflection = new ReflectionFunction($initializer);
 
         if ($reflection->getNumberOfParameters() !== 1) {
@@ -185,14 +263,18 @@ class Container
 
         $param = $params[0];
 
-        $name = $param->getName();
         $type = $this->getArgumentType($param);
-        $index = $this->index($name, $type);
+
+        if ($named) {
+            $name = $param->getName();
+            $index = $this->index($name, $type);
+        } else {
+            $name = null;
+            $index = $type;
+        }
 
         if (!isset($this->creators[$index])) {
-            // configure default service/component
-            $index = $type;
-            $name = null;
+            throw new RuntimeException("undefined service/component: {$index}");
         }
 
         $this->initializers[$index][] = $initializer;
@@ -298,9 +380,9 @@ class Container
         $index = $this->index($name, $type);
 
         return isset($this->services[$index])
-            || isset($this->creators[$index])
-            || isset($this->services[$type])
-            || isset($this->creators[$type]);
+        || isset($this->creators[$index])
+        || isset($this->services[$type])
+        || isset($this->creators[$type]);
     }
 
     /**

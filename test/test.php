@@ -589,20 +589,20 @@ test(
     function () {
         $c = new Container();
 
-        $c->registerService(
+        $c->registerNamedService(
+            "one",
             Bar::class,
             function () {
                 return new Bar(1);
-            },
-            "one"
+            }
         );
 
-        $c->registerService(
+        $c->registerNamedService(
+            "two",
             Bar::class,
             function () {
                 return new Bar(2);
-            },
-            "two"
+            }
         );
 
         /**
@@ -663,27 +663,27 @@ test(
     function () {
         $c = new Container();
 
-        $c->registerService(
+        $c->registerNamedService(
+            "one",
             Bar::class,
             function () {
                 return new Bar();
-            },
-            "one"
+            }
         );
 
-        $c->registerService(
+        $c->registerNamedService(
+            "two",
             Bar::class,
             function () {
                 return new Bar();
-            },
-            "two"
+            }
         );
 
-        $c->configure(function (Bar $one) {
+        $c->configureNamed(function (Bar $one) {
             $one->value = 1;
         });
 
-        $c->configure(function (Bar $two) {
+        $c->configureNamed(function (Bar $two) {
             $two->value = 2;
         });
 
