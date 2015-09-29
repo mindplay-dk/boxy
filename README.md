@@ -4,6 +4,8 @@ Boxy
 Open, simple, type-hinted (and type-checked) dependency injection container
 for PHP 5.5 and up.
 
+:warning: **WARNING**: this project is unmaintained and was superseded by [Unbox](https://github.com/mindplay-dk/unbox).
+
 Definitely inspired by [Pimple](http://pimple.sensiolabs.org/) but optimized for full
 IDE support, e.g. design-time and run-time type-checking, both on the provider and
 consumer side, in modern IDEs such as [Php Storm](https://www.jetbrains.com/phpstorm/) :v:
